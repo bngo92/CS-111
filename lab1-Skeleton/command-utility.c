@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+
 int iswordchar(char c)
 {
   if (isalpha(c))
@@ -26,6 +27,11 @@ int iswordchar(char c)
   }
 }
 
+/*
+@postcondition  *s is the beginning of the word, or the next token char if 
+                no word is found
+@return length of word, or 0 if no word is found
+*/
 int get_next_word(char **s)
 {
   char *ret = *s;
@@ -46,6 +52,9 @@ int get_next_word(char **s)
   return i;
 }
 
+/*
+@return pointer to next char of s that is either *s1 or *s2
+*/
 char* find_either(char *s, char *s1, char *s2)
 {
   char *ret1 = strstr(s, s1);
@@ -61,17 +70,23 @@ char* find_either(char *s, char *s1, char *s2)
     return ret2;
 }
 
+/*
+creates tree of commands parsing s, with c as the head command
+@param  n   size of *s
+*/
 void get_command(command_t c, char *s, int n) 
 {
+  if (get_subshell(c, s, n))
+    return;
+  
   if (get_sequence(c, s, n))
     return;
 
   char *comment = strchr(s, '#');
-  *comment = '\0';
-  n = comment - s;
-
-  if (get_subshell(c, s, n))
-    return;
+  if (comment != NULL) {
+      *comment = '\0';
+      n = comment - s;
+  }
 
   if (get_andor(c, s, n))
     return;
@@ -84,25 +99,61 @@ void get_command(command_t c, char *s, int n)
 
 int get_sequence(command_t c, char *s, int n)
 {
-  char *buffer = (char *) checked_malloc(n+1);
+  char* buffer = (char*)checked_malloc((size_t)(n+1));
+  char* temp;
   strncpy(buffer, s, n);
   buffer[n] = '\0';
+  char* save_ptr = buffer;
+  while(isspace(*buffer))
+  { 
+    buffer++;
+    n--;
+  }
 
+  if (buffer[0]='(')
+  {
+    //find matching parentheses
+    int count = 1; 
+    temp = buffer+1;
+    while(count!=0)
+    {
+        temp = find_either(temp, "(",")");
+        if (*temp = '(')
+            count++;
+        else if (*temp = ')')
+            count --; 
+        else 
+            error(1, 0, "subshell syntax");
+    }
+    
+    c->type = SEQUENCE_COMMAND;
+    c->status = -1; 
+    c->input = NULL;
+    c->output = NULL;
+    
+    c->u.command[0]= (command_t) checked_malloc(sizeof(struct command)); 
+    get_command(c->u.command[0], buffer, temp-buffer+1);
+    c->u.command[1]= (command_t) checked_malloc(sizeof(struct command));
+    get_command(c->u.command[1], temp+1, n-(temp-buffer+1)); 
+  }
   char *found = find_either(buffer, ";", "\n");
   if (found == NULL)
+  {
+    free(save_ptr);
     return 0;
-
+  }
+  
   c->type = SEQUENCE_COMMAND;
   c->status = -1;
   c->input = NULL;
   c->output = NULL;
   
   c->u.command[0] = (command_t) checked_malloc(sizeof(struct command));
-  get_command(c->u.command[0], s, (found - buffer) - 1);
+  get_command(c->u.command[0], buffer, (found - buffer));
   c->u.command[1] = (command_t) checked_malloc(sizeof(struct command));
-  get_command(c->u.command[1], found + 1, n - (found - buffer) + 1);
+  get_command(c->u.command[1], found + 1, n - (found - buffer));
 
-  free(buffer);
+  free(save_ptr);
   return 1;
 }
 
@@ -120,9 +171,13 @@ int get_subshell(command_t c, char *s, int n)
   char *buffer = (char *) checked_malloc(n+1);
   strncpy(buffer, s, n);
   buffer[n] = '\0';
+  char* save_ptr = buffer;
 
   if (buffer[0] != '(')
+  {
+    free(buffer);
     return 0;
+  }
 
   char *tmp = strchr(buffer, ')');
   if (tmp == NULL)
@@ -136,13 +191,73 @@ int get_subshell(command_t c, char *s, int n)
   c->input = NULL;
   c->output = NULL;
   
-  c->u.subshell_command = (command_t) malloc(sizeof(struct command*));
+  c->u.subshell_command = (command_t) checked_malloc(sizeof(struct command*));
   get_command(c->u.subshell_command, buffer + 1, n - 2);
+  free(save_ptr);
   return 1;
 }
 
-int get_andor(command_t c, char *s, int n) { return 0; }
-int get_pipeline(command_t c, char *s, int n) { return 0; }
+int get_andor(command_t c, char *s, int n) {
+  char* buffer = (char*) checked_malloc(n+1);
+  strncpy(buffer, s, n);
+  buffer[n]='\0';
+    
+  char *found = find_either(buffer, "&&", "||");
+  if(found == NULL)
+  {
+    free(buffer);
+    return 0;
+  }
+  
+  if(*found = '&')
+    c->type = AND_COMMAND;
+  else if(*found = '|')
+    c->type = OR_COMMAND;
+  else
+    error(1, 0, "AND_OR syntax; find function misbehaved");
+
+  c->status = -1; 
+  c->input = NULL;
+  c->output = NULL;
+
+  c->u.command[0] = (command_t) checked_malloc(sizeof(struct command)); 
+  get_command(c->u.command[0], buffer, found-buffer);
+  c->u.command[1] = (command_t) checked_malloc(sizeof(struct command));
+  get_command(c->u.command[1], found+2, n-(found+2-buffer));
+
+  free(buffer);
+
+  return 1;
+}
+
+
+int get_pipeline(command_t c, char *s, int n) {
+  char* buffer = (char*) checked_malloc(n+1);
+  strncpy(buffer, s, n);
+  buffer[n]='\0';
+
+  char* found = strchr(buffer, '|');
+  if(found==NULL)
+  {
+    free(buffer);
+    return 0;
+  }
+
+  c->type = PIPE_COMMAND;
+  c->status = -1; 
+  c->input = NULL;
+  c->output = NULL;
+
+  c->u.command[0] = (command_t) checked_malloc(sizeof(struct command)); 
+  get_command(c->u.command[0], buffer, (found - buffer)); 
+  c->u.command[1] = (command_t) checked_malloc(sizeof(struct command));
+  get_command(c->u.command[1], found+1, n-(found - buffer));
+
+  free(buffer);
+  return 1;
+
+}
+
 
 void get_simple(command_t c, char *s, int n) 
 {
@@ -170,8 +285,8 @@ void get_simple(command_t c, char *s, int n)
     strncpy(c->u.word[word_count], s, n);
     c->u.word[word_count][n] = '\0';
     word_count++;
+  
   }
-
   if (*buffer == '<') {
     buffer++;
     if (get_next_word(&buffer) == 0)
