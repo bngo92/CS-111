@@ -53,10 +53,11 @@ make_command_stream (int (*get_next_byte) (void *),
     size++;
   }
   buf[pos] = '\0'; 
-  pos++; 
+  //pos++
 
   ret_stream->root = (command_t) checked_malloc(sizeof(command_t));
-  get_command(ret_stream->root, buf, pos);
+  get_command(ret_stream->root, buf, pos );
+
 
   return ret_stream;
 }

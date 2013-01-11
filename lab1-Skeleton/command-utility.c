@@ -49,6 +49,7 @@ int get_next_word(char **s)
   while (iswordchar(ret[i])) {
     i++;
   }
+  *s = ret;
   return i;
 }
 
@@ -76,12 +77,12 @@ creates tree of commands parsing s, with c as the head command
 */
 void get_command(command_t c, char *s, int n) 
 {
-  if (get_sequence(c, s, n))
-    return;
-
   if (get_subshell(c, s, n))
     return;
   
+  if (get_sequence(c, s, n))
+    return;
+
   char *comment = strchr(s, '#');
   if (comment != NULL) {
       *comment = '\0';
@@ -102,14 +103,18 @@ int get_sequence(command_t c, char *s, int n)
   char* buffer = (char*)checked_malloc((size_t)(n+1));
   char* temp;
   strncpy(buffer, s, n);
-  buffer[n] = '\0';
   char* save_ptr = buffer;
   while(isspace(*buffer))
   { 
     buffer++;
     n--;
   }
-
+  while(isspace(buffer[n-1]))
+  {
+    n--;
+  }
+  buffer[n]='\0';
+  
   /*if (buffer[0]='(')
   {
     //find matching parentheses
@@ -143,7 +148,11 @@ int get_sequence(command_t c, char *s, int n)
     free(save_ptr);
     return 0;
   }
-  
+  if(*found=='\n' && found-buffer==n+2)
+  {
+    free(save_ptr);
+    return 0;
+  }
   c->type = SEQUENCE_COMMAND;
   c->status = -1;
   c->input = NULL;
@@ -211,7 +220,8 @@ int get_andor(command_t c, char *s, int n) {
   char* buffer = (char*) checked_malloc(n+1);
   strncpy(buffer, s, n);
   buffer[n]='\0';
-    
+ 
+
   char *found = find_either(buffer, "&&", "||");
   if(found == NULL)
   {
@@ -235,8 +245,7 @@ int get_andor(command_t c, char *s, int n) {
   c->u.command[1] = (command_t) checked_malloc(sizeof(struct command));
   get_command(c->u.command[1], found+2, n-(found+2-buffer));
 
-  free(buffer);
-
+  //free(buffer);
   return 1;
 }
 
@@ -274,42 +283,48 @@ void get_simple(command_t c, char *s, int n)
   char *buffer = (char *) checked_malloc(n+1);
   strncpy(buffer, s, n);
   buffer[n] = '\0';
+  char* save_ptr = buffer;
 
   c->type = SIMPLE_COMMAND;
   c->status = -1;
   c->input = NULL;
   c->output = NULL;
 
-  int size = sizeof(char *);
+  size_t size = 0;
   int word_count = 0;
   c->u.word = (char **) checked_malloc(sizeof(char *));
-
+  int i=0;
   while(1) {
-    int n = get_next_word(&buffer);
-    if (n < 1) {
+    i = get_next_word(&buffer);
+    if (i < 1) {
       if (word_count == 0) 
         error(1, 0, "simple syntax");
       if (*buffer == '\0' || *buffer == '<' || *buffer == '>')
         break;
+        
     }
 
+     
+    
     word_count++;
-    c->u.word = (char **) checked_grow_alloc(c->u.word, &size);
-    c->u.word[word_count-1] = (char *) checked_malloc((n + 1) * sizeof(char));
-    strncpy(c->u.word[word_count-1], s, n);
-    c->u.word[word_count-1][n] = '\0';
+    size = size + sizeof(char *);
+    c->u.word = (char **) checked_realloc(c->u.word, size);
+    c->u.word[word_count-1] = (char *) checked_malloc((i + 1) * sizeof(char));
+    strncpy(c->u.word[word_count-1], buffer, i);
+    
+    c->u.word[word_count-1][i] = '\0';
+    buffer = buffer+i;
   
   }
   if (*buffer == '<') {
     buffer++;
-    if (get_next_word(&buffer) == 0)
+    i = get_next_word(&buffer);
+    if (i < 1)
       error(1, 0, "simple syntax");
 
-    c->u.word = (char **) checked_grow_alloc(c->u.word, &size);
-    c->u.word[word_count] = (char *) checked_malloc((n + 1) * sizeof(char));
-    strncpy(c->u.word[word_count], s, n);
-    c->u.word[word_count][n] = '\0';
-    word_count++;
+    c->input = (char *) checked_malloc((i + 1) * sizeof(char));
+    strncpy(c->input, s, i);
+    c->input[n] = '\0';
   }
 
   if (*buffer == '>') {
@@ -317,11 +332,9 @@ void get_simple(command_t c, char *s, int n)
     if (get_next_word(&buffer) == 0)
       error(1, 0, "simple syntax");
 
-    c->u.word = (char **) checked_grow_alloc(c->u.word, &size);
-    c->u.word[word_count] = (char *) checked_malloc((n + 1) * sizeof(char));
-    strncpy(c->u.word[word_count], s, n);
-    c->u.word[word_count][n] = '\0';
-    word_count++;
+    c->input = (char *) checked_malloc((i + 1) * sizeof(char));
+    strncpy(c->input, s, i);
+    c->input = '\0';
   }
 
   while (isspace(*buffer))
@@ -330,5 +343,5 @@ void get_simple(command_t c, char *s, int n)
   if (*buffer != '\0')
     error(1, 0, "simple syntax");
 
-  free(buffer);
+  free(save_ptr);
 }
