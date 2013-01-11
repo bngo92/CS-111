@@ -76,12 +76,12 @@ creates tree of commands parsing s, with c as the head command
 */
 void get_command(command_t c, char *s, int n) 
 {
-  if (get_subshell(c, s, n))
-    return;
-  
   if (get_sequence(c, s, n))
     return;
 
+  if (get_subshell(c, s, n))
+    return;
+  
   char *comment = strchr(s, '#');
   if (comment != NULL) {
       *comment = '\0';
@@ -110,7 +110,7 @@ int get_sequence(command_t c, char *s, int n)
     n--;
   }
 
-  if (buffer[0]='(')
+  /*if (buffer[0]='(')
   {
     //find matching parentheses
     int count = 1; 
@@ -118,12 +118,12 @@ int get_sequence(command_t c, char *s, int n)
     while(count!=0)
     {
         temp = find_either(temp, "(",")");
-        if (*temp = '(')
-            count++;
-        else if (*temp = ')')
-            count --; 
-        else 
+        if (temp == NULL)
             error(1, 0, "subshell syntax");
+        else if (*temp == '(')
+            count++;
+        else
+            count--; 
     }
     
     c->type = SEQUENCE_COMMAND;
@@ -135,7 +135,8 @@ int get_sequence(command_t c, char *s, int n)
     get_command(c->u.command[0], buffer, temp-buffer+1);
     c->u.command[1]= (command_t) checked_malloc(sizeof(struct command));
     get_command(c->u.command[1], temp+1, n-(temp-buffer+1)); 
-  }
+    return 0;
+  }*/
   char *found = find_either(buffer, ";", "\n");
   if (found == NULL)
   {
@@ -178,13 +179,22 @@ int get_subshell(command_t c, char *s, int n)
     free(buffer);
     return 0;
   }
-
-  char *tmp = strchr(buffer, ')');
-  if (tmp == NULL)
-    error(1, 0, "subshell syntax");
-
-  if (s[n-1] != ')')
+  int count = 1; 
+  char *nextparen = find_either(buffer, ")", "(");
+  while(count !=0)
+  {
+    if(*nextparen=='\0')
+      error(1,0,"subshell syntax");
+    else if (*nextparen == '(')
+      count ++;
+    else
+      count --;
+  }
+  if(nextparen-buffer != n-1)
+  {
+    free(buffer);
     return 0;
+  }
 
   c->type = SUBSHELL_COMMAND;
   c->status = -1;
@@ -270,7 +280,10 @@ void get_simple(command_t c, char *s, int n)
   c->input = NULL;
   c->output = NULL;
 
+  int size = sizeof(char *);
   int word_count = 0;
+  c->u.word = (char **) checked_malloc(sizeof(char *));
+
   while(1) {
     int n = get_next_word(&buffer);
     if (n < 1) {
@@ -280,11 +293,11 @@ void get_simple(command_t c, char *s, int n)
         break;
     }
 
-    c->u.word = (char **) checked_realloc(word_count * sizeof(char *));
-    c->u.word[word_count] = (char *) checked_malloc((n + 1) * sizeof(char));
-    strncpy(c->u.word[word_count], s, n);
-    c->u.word[word_count][n] = '\0';
     word_count++;
+    c->u.word = (char **) checked_grow_alloc(c->u.word, &size);
+    c->u.word[word_count-1] = (char *) checked_malloc((n + 1) * sizeof(char));
+    strncpy(c->u.word[word_count-1], s, n);
+    c->u.word[word_count-1][n] = '\0';
   
   }
   if (*buffer == '<') {
@@ -292,7 +305,7 @@ void get_simple(command_t c, char *s, int n)
     if (get_next_word(&buffer) == 0)
       error(1, 0, "simple syntax");
 
-    c->u.word = (char **) checked_realloc(word_count * sizeof(char *));
+    c->u.word = (char **) checked_grow_alloc(c->u.word, &size);
     c->u.word[word_count] = (char *) checked_malloc((n + 1) * sizeof(char));
     strncpy(c->u.word[word_count], s, n);
     c->u.word[word_count][n] = '\0';
@@ -304,7 +317,7 @@ void get_simple(command_t c, char *s, int n)
     if (get_next_word(&buffer) == 0)
       error(1, 0, "simple syntax");
 
-    c->u.word = (char **) checked_realloc(word_count * sizeof(char *));
+    c->u.word = (char **) checked_grow_alloc(c->u.word, &size);
     c->u.word[word_count] = (char *) checked_malloc((n + 1) * sizeof(char));
     strncpy(c->u.word[word_count], s, n);
     c->u.word[word_count][n] = '\0';
