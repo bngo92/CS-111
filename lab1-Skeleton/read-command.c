@@ -4,9 +4,6 @@
 
 #include <error.h>
 
-/* FIXME: You may need to add #include directives, macro definitions,
-   static function definitions, etc.  */
-
 #include "alloc.h"
 #include <ctype.h>
 #include <string.h>
@@ -26,7 +23,7 @@ int get_andor(command_t c, char *s, int n);
 int get_pipeline(command_t c, char *s, int n);
 void get_simple(command_t c, char *s, int n);
 
-char *strdcpy(const char *src, size_t n)
+char* strdcpy(const char *src, size_t n)
 {
   char* buffer = (char*) checked_malloc(n+1);
   strncpy(buffer, src, n);
@@ -56,6 +53,21 @@ int iswordchar(char c)
   }
 }
 
+int isToken(char c)
+{
+    switch (c) {
+    case ';':
+    case '&':
+    case '|':
+    case '<':
+    case '>':
+    case '(':
+    case ')':
+        return 1; 
+    default:
+        return 0;
+    }
+}
 /*
 @postcondition  *s is the beginning of the word, or the next token char if 
                 no word is found
@@ -66,9 +78,9 @@ int get_next_word(char **s)
   char *ret = *s;
   //nullbyte at end of buffer
   while (!iswordchar(*ret)) {
-    if (isspace(*ret)) {
+    if (isspace(*ret))
       ret++;
-    } else {
+    else {
       *s = ret;
       return 0;
     }
@@ -136,12 +148,13 @@ void get_command(command_t c, char *s, int n)
   if (get_sequence(c, s, n))
     return;
 
-  char *comment = strchr(s, '#');
+  //TODO: errors occur if the entire line is a comment.
+  /*char *comment = strchr(s, '#');
   if (comment != NULL) {
       *comment = '\0';
       n = comment - s;
   }
-
+*/
   if (get_andor(c, s, n))
     return;
 
@@ -167,18 +180,29 @@ int get_sequence(command_t c, char *s, int n)
   
   char *found = buffer + strcspn(buffer, "(;\n");
   while (1) {
-    if (*found == '\0')
-    {
+    if (*found == '\0') {
       free(buffer);
       return 0;
-    } else if (*found == '(') {
+    } 
+    else if (*found == '(') {
       found = find_matching_paren(found);
-    } else {
-      if (*found == '\n')
+    } 
+    else if (*found =='\n')
+    {
+      char prev = *( found-1 );
+      if(prev!=';' && prev!='&'
+      && prev!='|' && prev!='('
+      && prev!=')' )
+      {
         line_number++;
-      break;
+        break;
+      }
+      else if(prev=='<' || prev=='>')
+        error(1, 0, "line number: %d", line_number);
+      found += strcspn(found , "(;\n");
     }
-    found += strcspn(found, "(;\n");
+    else
+      break;
   }
   
   c->type = SEQUENCE_COMMAND;
@@ -221,7 +245,7 @@ int get_subshell(command_t c, char *s, int n)
   c->status = -1;
   c->input = NULL;
   c->output = NULL;
-  
+ 
   c->u.subshell_command = (command_t) checked_malloc(sizeof(struct command*));
   get_command(c->u.subshell_command, buffer + 1, n - 2);
 
@@ -255,7 +279,7 @@ int get_andor(command_t c, char *s, int n) {
   c->u.command[1] = (command_t) checked_malloc(sizeof(struct command));
   get_command(c->u.command[1], found+2, n-(found+2-buffer));
 
-  //free(buffer);
+  free(buffer);
   return 1;
 }
 
@@ -357,7 +381,6 @@ void get_simple(command_t c, char *s, int n)
   free(save_ptr);
 }
        
-/* FIXME: Define the type 'struct command_stream' here.  This should complete the incomplete type declaration in command.h.  */
 
 struct command_stream
 {
@@ -370,9 +393,6 @@ command_stream_t
 make_command_stream (int (*get_next_byte) (void *),
 		     void *get_next_byte_argument)
 {
-  /* FIXME: Replace this with your implementation.  You may need to
-     add auxiliary functions and otherwise modify the source code.
-     You can also use external functions defined in the GNU C Library.  */
   command_stream_t ret_stream = (command_stream_t) checked_malloc(sizeof(struct command_stream));
   int size = 10;
   char* buf = (char*) checked_malloc((size_t) size);
@@ -380,14 +400,34 @@ make_command_stream (int (*get_next_byte) (void *),
   int nextchar =  get_next_byte(get_next_byte_argument);
   while( nextchar != -1) 
   {
+    //update buffer size as necessary
     if(pos==size)
     {
-        checked_realloc(buf, (size_t)(2*size) );
-        size = 2*size;
+      checked_realloc(buf, (size_t)(2*size) );
+      size = 2*size;
     }
-    buf[pos] = (char) nextchar;
+    //squeeze whitespace
+    if(nextchar=='\n' && isspace(buf[pos-1]))
+    {
+       buf[pos-1]=nextchar;
+    }
+    else if ((nextchar=='\t' || nextchar==' ') && isspace(buf[pos-1]))
+    {
+    }
+    //remove comments
+    else if (nextchar=='#')
+    {
+        while(nextchar!='\n')
+            nextchar = get_next_byte(get_next_byte_argument);
+
+        nextchar = get_next_byte(get_next_byte_argument);
+    }
+    else
+    {
+        buf[pos] = (char) nextchar;
+        pos++;
+    }
     nextchar = get_next_byte(get_next_byte_argument);
-    pos++;
   }
  
   if(pos==size)
@@ -395,6 +435,8 @@ make_command_stream (int (*get_next_byte) (void *),
     checked_realloc(buf, (size_t)(size+1));
     size++;
   }
+
+  //trailing space?
   buf[pos] = '\0'; 
   int bt = pos-1;
   while (isspace(buf[bt]) || buf[bt] == ';') {
