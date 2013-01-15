@@ -16,6 +16,25 @@
 
 int line_number = 0;
 
+enum token_type
+{
+  WORD,
+  SEMICOLON,
+  PIPE,
+  AND,
+  OR,
+  LEFT_PAREN,
+  RIGHT_PAREN,
+  LEFT_BRACKET,
+  RIGHT_BRACKET
+};
+
+struct token
+{
+  enum token_type type;
+  int line_number;
+};
+
 void get_command(command_t c, char *s, int n);
 int get_sequence(command_t c, char *s, int n);
 int get_subshell(command_t c, char *s, int n);
