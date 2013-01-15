@@ -52,27 +52,27 @@ struct token *find_token(struct token *a, enum token_type t, int n)
   return NULL;
 }
 
-void *create_token(struct token *t, enum token_type type, int line_number)
-{
-  struct tokent = (struct token *) checked_malloc(sizeof(struct token));
-  t.type = type;
-  t.line_number = line_number;
-}
-
-void *create_word_token(struct token *t, const char* s, int n, int line_number)
+void create_token(struct token *t, enum token_type type, int line_number)
 {
   t = (struct token *) checked_malloc(sizeof(struct token));
-  t.t = WORD;
-  t.word = strdcpy(s, n);
-  t.line_number = line_number;
+  t->type = type;
+  t->line_number = line_number;
 }
 
-void get_command(command_t c, token *s, int n);
-int get_sequence(command_t c, token *s, int n);
-int get_subshell(command_t c, token *s, int n);
-int get_andor(command_t c, token *s, int n);
-int get_pipeline(command_t c, token *s, int n);
-void get_simple(command_t c, token *s, int n);
+void create_word_token(struct token *t, const char* s, int n, int line_number)
+{
+  t = (struct token *) checked_malloc(sizeof(struct token));
+  t->type = WORD;
+  t->word = strdcpy(s, n);
+  t->line_number = line_number;
+}
+
+void get_command(command_t c, struct token *s, int n);
+int get_sequence(command_t c, struct token *s, int n);
+int get_subshell(command_t c, struct token *s, int n);
+int get_andor(command_t c, struct token *s, int n);
+int get_pipeline(command_t c, struct token *s, int n);
+void get_simple(command_t c, struct token *s, int n);
 
 int iswordchar(char c)
 {
@@ -116,28 +116,30 @@ int isToken(char c)
 @precondition s is pointing to a left parenthesis
 @return pointer to matching parenthesis
 */
-token* find_matching_paren(token* s, int n)
+struct token* find_matching_paren(struct token* s, int n)
 {
   int line_number = -1;
   int depth = 1;
-  for (int i = 0; i < n; i++) {
+  int i = 0; 
+  while(i < n) {
     if (s[i].type == LEFT_PAREN) {
       depth++;
     } else if (s[i].type == RIGHT_PAREN) {
       depth--;
     }
     line_number = s[i].line_number;
+    i++;
   }
   if (depth != 0)
     error(1, 0, "line number: %d", line_number);
-  return s[i];
+  return s+i;
 }
 
 /*
 creates tree of commands parsing s, with c as the head command
 @param  n   size of *s
 */
-void get_command(command_t c, token *s, int n) 
+void get_command(command_t c, struct token *s, int n) 
 {
   if (get_subshell(c, s, n))
     return;
@@ -150,9 +152,9 @@ void get_command(command_t c, token *s, int n)
   get_simple(c, s, n);
 }
 
-int get_sequence(command_t c, token *s, int n)
+int get_sequence(command_t c, struct token *s, int n)
 {
-  token *found = find_token(s, SEMICOLON, n);
+  struct token *found = find_token(s, SEMICOLON, n);
   if (found == NULL)
     return 0;
   
@@ -168,9 +170,9 @@ int get_sequence(command_t c, token *s, int n)
   return 1;
 }
 
-int get_subshell(command_t c, token *s, int n)
+int get_subshell(command_t c, struct token *s, int n)
 {
-  if (*s->type != LEFT_PAREN) {
+  if (s->type != LEFT_PAREN) {
     return 0;
   }
   if(find_matching_paren(s, n) - s != n-1) {
@@ -187,10 +189,10 @@ int get_subshell(command_t c, token *s, int n)
   return 1;
 }
 
-int get_andor(command_t c, token *s, int n) {
+int get_andor(command_t c, struct token *s, int n) {
   struct token *found;
-  struct token *found1 = find_token(tokens, AND);
-  struct token *found2 = find_token(tokens, OR);
+  struct token *found1 = find_token(s, AND, n);
+  struct token *found2 = find_token(s, OR, n);
   if (found1 == NULL && found2 == NULL)
     return 0;
   else if (found1 != NULL && found2 != NULL)
@@ -198,28 +200,28 @@ int get_andor(command_t c, token *s, int n) {
   else if (found1 != NULL)
     found = found1;
   else
-    found = ret2;
+    found = found2;
   
   if (found->type == AND)
     c->type = AND_COMMAND;
   else if (found->type == OR)
     c->type = OR_COMMAND;
   else
-    error(1, 0, "line number: %d", line_number);
+    error(1, 0, "line number: %d", found->line_number);
 
   c->status = -1; 
   c->input = NULL;
   c->output = NULL;
 
   c->u.command[0] = (command_t) checked_malloc(sizeof(struct command)); 
-  get_command(c->u.command[0], buffer, found-buffer);
+  get_command(c->u.command[0], s, found-s);
   c->u.command[1] = (command_t) checked_malloc(sizeof(struct command));
-  get_command(c->u.command[1], found+2, n-(found+2-buffer));
+  get_command(c->u.command[1], found+2, n-(found+2-s));
   return 1;
 }
 
-int get_pipeline(command_t c, token *s, int n) {
-  token *found = find_token(s, PIPE, n);
+int get_pipeline(command_t c, struct token *s, int n) {
+  struct token *found = find_token(s, PIPE, n);
   if (found == NULL)
     return 0;
 
@@ -233,12 +235,11 @@ int get_pipeline(command_t c, token *s, int n) {
   c->u.command[1] = (command_t) checked_malloc(sizeof(struct command));
   get_command(c->u.command[1], found+1, n-(found - s));
 
-  free(buffer);
   return 1;
 
 }
 
-void get_simple(command_t c, token *s, int n) 
+void get_simple(command_t c, struct token *s, int n) 
 {
   c->type = SIMPLE_COMMAND;
   c->status = -1;
@@ -249,27 +250,27 @@ void get_simple(command_t c, token *s, int n)
   size_t word_count = 0;
   c->u.word = (char **) checked_malloc(sizeof(char *));
   int i = 0;
-  while(s[i]->type == WORD) {
-    c->u.word[word_count] = s[i]->word;
+  while(s[i].type == WORD) {
+    c->u.word[word_count] = s[i].word;
     word_count++;
     if (word_count == size)
       c->u.word = (char **) checked_grow_alloc(c->u.word, &size);
     i++;
   }
-  if (s[i]->type == LEFT_BRACKET) {
+  if (s[i].type == LEFT_BRACKET) {
     i++;
-    if (s[i]->type != WORD)
-      error(1, 0, "line number: %d", s[i]->line_number);
-    c->input = s[i]->word;
+    if (s[i].type != WORD)
+      error(1, 0, "line number: %d", s[i].line_number);
+    c->input = s[i].word;
   }
-  if (s[i]->type == RIGHT_BRACKET) {
+  if (s[i].type == RIGHT_BRACKET) {
     i++;
-    if (s[i]->type != WORD)
-      error(1, 0, "line number: %d", s[i]->line_number);
-    c->output = s[i]->word;
+    if (s[i].type != WORD)
+      error(1, 0, "line number: %d", s[i].line_number);
+    c->output = s[i].word;
   }
   if (i != n)
-    error(1, 0, "line number: %d", s[i]->line_number);
+    error(1, 0, "line number: %d", s[i].line_number);
 }
        
 
@@ -286,12 +287,12 @@ make_command_stream (int (*get_next_byte) (void *),
 {
   command_stream_t ret_stream = (command_stream_t) checked_malloc(sizeof(struct command_stream));
 
-  int buffer_pos = 0;
+  size_t buffer_pos = 0;
   size_t buffer_size = 80;
   char *buffer = (char *) checked_malloc(buffer_size * sizeof(char));
   memset(buffer, 0, buffer_size * sizeof(char));
 
-  int token_pos = 0;
+  size_t token_pos = 0;
   size_t token_size = 10;
   struct token *tokens = (struct token *) checked_malloc(token_size * sizeof(struct token *));
   
@@ -335,6 +336,8 @@ make_command_stream (int (*get_next_byte) (void *),
       }
       newline = 0;
     } else if (isToken(nextchar)) {
+      if (tokens[token_pos-1].type != WORD)
+        error(1, 0, "line number: %d", line_number);
       if (nextchar == '(') {
         create_token(&tokens[token_pos], LEFT_PAREN, line_number);
         token_pos++;
