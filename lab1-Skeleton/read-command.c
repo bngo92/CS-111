@@ -6,14 +6,11 @@
 
 #include "alloc.h"
 #include <ctype.h>
-#include <string.h>
-#include <stdbool.h>
 
 /* Make tree */
 #include <ctype.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
 
 enum token_type
 {
