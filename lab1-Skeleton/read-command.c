@@ -126,7 +126,7 @@ int isToken(char c)
 struct token* find_matching_paren(struct token* s, int n)
 {
   int line_number = -1;
-  int depth = 1;
+  int depth = 0;
   int i = 0; 
   while(i < n) {
     if (s[i].type == LEFT_PAREN) {
@@ -182,7 +182,7 @@ int get_subshell(command_t c, struct token *s, int n)
   if (s->type != LEFT_PAREN) {
     return 0;
   }
-  if(find_matching_paren(s, n) - s != n-1) {
+  if(find_matching_paren(s, n) != s + n) {
     return 0;
   }
 
@@ -365,7 +365,7 @@ make_command_stream (int (*get_next_byte) (void *),
           tokens = checked_grow_alloc(tokens, &token_size);
         }
       }
-      if (tokens[token_pos-1].type != WORD)
+      if (tokens[token_pos-1].type != WORD && token_pos != 0)
         error(1, 0, "line number: %d", line_number);
       if (nextchar == '(') {
         tokens[token_pos] = create_token(LEFT_PAREN, line_number);
