@@ -423,6 +423,8 @@ make_command_stream (int (*get_next_byte) (void *),
     error(1, 0, "line number: %d", line_number);
   ret_stream->root = (command_t) checked_malloc(sizeof(struct command));
   get_command(ret_stream->root, tokens, token_pos);
+  free(tokens);
+  free(buffer);
   return ret_stream;
 }
 
