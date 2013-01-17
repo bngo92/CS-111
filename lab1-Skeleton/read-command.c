@@ -345,8 +345,7 @@ make_command_stream (int (*get_next_byte) (void *),
       } 
       else { 
         if (prev_token == SEMICOLON || prev_token == AND || prev_token == OR ||
-            prev_token == PIPE || prev_token == LEFT_PAREN ||
-            prev_token == RIGHT_PAREN) {
+            prev_token == PIPE || prev_token == LEFT_PAREN) {
         } else if (prev_token == LEFT_BRACKET || prev_token == RIGHT_BRACKET) {
           error(1, 0, "%d: unexpected newline", line_number);
         } else {
@@ -364,8 +363,6 @@ make_command_stream (int (*get_next_byte) (void *),
       }
       newline = 0;
     } else if (isToken(nextchar)) {
-      if (token_pos==0 && nextchar!='(')
-        error(1, 0, "%d: unexpected token", line_number);
       if (buffer_pos != 0) {
         tokens[token_pos] = create_word_token(buffer, buffer_pos, line_number);
         token_pos++;
@@ -379,25 +376,19 @@ make_command_stream (int (*get_next_byte) (void *),
       }
 
       if (nextchar == '(') {
-        if(prev_token!=LEFT_PAREN && prev_token!=AND && prev_token!=OR && prev_token!=SEMICOLON)
-            error(1, 0, "%d: unexpected left paren", line_number);
         tokens[token_pos] = create_token(LEFT_PAREN, line_number);
         token_pos++;
       } else if (nextchar == ')') {
-          if(prev_token!=WORD && prev_token!=RIGHT_PAREN && prev_token!=SEMICOLON)
-              error(1, 0, "%d: unexpected right paren", line_number);
+        if(prev_token != WORD)
+          error(1, 0, "%d: unexpected right paren", line_number);
         tokens[token_pos] = create_token(RIGHT_PAREN, line_number);
         token_pos++;
-      } else if (newline) {
+      } else if (newline || (prev_token != WORD && prev_token != RIGHT_PAREN)) {
         error(1, 0, "%d: unexpected token", line_number);
       } else if (nextchar == ';') {
-        if(prev_token!=WORD)
-            error(1, 0, "%d: unexpected token", line_number);
         tokens[token_pos] = create_token(SEMICOLON, line_number);
         token_pos++;
       } else if (nextchar == '&') {
-        if(prev_token!=WORD && prev_token!=RIGHT_PAREN)
-            error(1, 0, "%d: unexpected token", line_number);
         nextchar = get_next_byte(get_next_byte_argument);
         if (nextchar != '&') {
           error(1, 0, "%d: expected &", line_number);
@@ -407,13 +398,9 @@ make_command_stream (int (*get_next_byte) (void *),
       } else if (nextchar == '|') { 
         nextchar = get_next_byte(get_next_byte_argument);
         if (nextchar == '|') {
-          if (prev_token!=WORD && prev_token!=RIGHT_PAREN)
-              error(1, 0, "%d: unexpected token", line_number);
           tokens[token_pos] = create_token(OR, line_number);
           token_pos++;
         } else {
-          if (prev_token!=WORD)
-             error(1, 0, "%d: unexpected token", line_number);
           tokens[token_pos] = create_token(PIPE, line_number);
           token_pos++;
           continue;
@@ -470,4 +457,5 @@ read_command_stream (command_stream_t s)
     s->root = s->root->u.command[1];
   }
 
-  return ret;}
+  return ret;
+}
