@@ -345,7 +345,7 @@ make_command_stream (int (*get_next_byte) (void *),
       } 
       else { 
         if (prev_token == SEMICOLON || prev_token == AND || prev_token == OR ||
-            prev_token == PIPE || prev_token == LEFT_PAREN) {
+            prev_token == PIPE || prev_token == LEFT_PAREN || token_pos == 0) {
         } else if (prev_token == LEFT_BRACKET || prev_token == RIGHT_BRACKET) {
           error(1, 0, "%d: unexpected newline", line_number);
         } else {
