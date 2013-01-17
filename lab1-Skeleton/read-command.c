@@ -364,6 +364,8 @@ make_command_stream (int (*get_next_byte) (void *),
       }
       newline = 0;
     } else if (isToken(nextchar)) {
+      if (token_pos==0 && nextchar!='(')
+        error(1, 0, "%d: unexpected token", line_number);
       if (buffer_pos != 0) {
         tokens[token_pos] = create_word_token(buffer, buffer_pos, line_number);
         token_pos++;
