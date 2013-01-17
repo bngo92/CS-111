@@ -119,6 +119,34 @@ int isToken(char c)
     }
 }
 
+struct token *find_either(struct token *s, enum token_type t1, enum token_type t2, int n)
+{
+  struct token *found1 = find_token(s, t1, n);
+  struct token *found2 = find_token(s, t2, n);
+  if (found1 == NULL && found2 == NULL)
+    return NULL;
+  else if (found1 != NULL && found2 != NULL)
+    return (found1 < found2) ? found1 : found2;
+  else if (found1 != NULL)
+    return found1;
+  else
+    return found2;
+}
+
+struct token *find_last_either(struct token *s, enum token_type t1, enum token_type t2, int n)
+{
+  struct token *found1 = find_last_token(s, t1, n);
+  struct token *found2 = find_last_token(s, t2, n);
+  if (found1 == NULL && found2 == NULL)
+    return NULL;
+  else if (found1 != NULL && found2 != NULL)
+    return (found1 > found2) ? found1 : found2;
+  else if (found1 != NULL)
+    return found1;
+  else
+    return found2;
+}
+
 /*
 @precondition s is pointing to a left parenthesis
 @return pointer to matching parenthesis
@@ -133,15 +161,16 @@ struct token* find_matching_paren(struct token* s, int n)
       depth++;
     } else if (s[i].type == RIGHT_PAREN) {
       depth--;
-      if (depth < 0)
+      if (depth == 0)
+        return s + i;
+      else if (depth < 0)
         error(1, 0, "%d: syntax error", line_number);
     }
     line_number = s[i].line_number;
     i++;
-  } while (depth != 0 && i < n);
-  if (depth != 0)
-    error(1, 0, "%d: Expecting another parentheses", line_number);
-  return s+i;
+  } while (i < n);
+  error(1, 0, "%d: Expecting another parentheses", line_number);
+  return NULL;
 }
 
 /*
@@ -163,9 +192,15 @@ void get_command(command_t c, struct token *s, int n)
 
 int get_sequence(command_t c, struct token *s, int n)
 {
-  struct token *found = find_token(s, SEMICOLON, n);
+  struct token *found = find_either(s, SEMICOLON, LEFT_PAREN, n);
   if (found == NULL)
     return 0;
+  while (found->type == LEFT_PAREN) {
+    found = find_matching_paren(found, n - (found - s));
+    found = find_either(found, SEMICOLON, LEFT_PAREN, n - (found - s));
+    if (found == NULL)
+      return 0;
+  }
   
   c->type = SEQUENCE_COMMAND;
   c->status = -1;
@@ -184,7 +219,7 @@ int get_subshell(command_t c, struct token *s, int n)
   if (s->type != LEFT_PAREN) {
     return 0;
   }
-  if(find_matching_paren(s, n) != s + n) {
+  if(find_matching_paren(s, n) != s + n - 1) {
     return 0;
   }
 
@@ -199,19 +234,11 @@ int get_subshell(command_t c, struct token *s, int n)
 }
 
 int get_andor(command_t c, struct token *s, int n) {
-  struct token *found;
-  struct token *found1 = find_last_token(s, AND, n);
-  struct token *found2 = find_last_token(s, OR, n);
-  if (found1 == NULL && found2 == NULL)
-    return 0;
-  else if (found1 != NULL && found2 != NULL)
-    found = (found1 > found2) ? found1 : found2;
-  else if (found1 != NULL)
-    found = found1;
-  else
-    found = found2;
+  struct token *found = find_last_either(s, AND, OR, n);
   
-  if (found->type == AND)
+  if (found == NULL)
+    return 0;
+  else if (found->type == AND)
     c->type = AND_COMMAND;
   else if (found->type == OR)
     c->type = OR_COMMAND;
@@ -325,11 +352,10 @@ make_command_stream (int (*get_next_byte) (void *),
       while(nextchar!='\n')
         nextchar = get_next_byte(get_next_byte_argument);
     }
-    //NOT SURE IF THIS WORKS
-    enum token_type prev_token = WORD;
-    if(token_pos>0)
-    {
-        prev_token = tokens[token_pos-1].type;
+
+    enum token_type prev_token;
+    if (token_pos != 0) {
+      prev_token = tokens[token_pos-1].type;
     }
     if (isspace(nextchar)) {
       if (buffer_pos != 0) {
