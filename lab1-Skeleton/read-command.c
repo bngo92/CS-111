@@ -138,7 +138,7 @@ struct token* find_matching_paren(struct token* s, int n)
     i++;
   }
   if (depth != 0)
-    error(1, 0, "line number: %d", line_number);
+    error(1, 0, "%d: Expecting another parentheses", line_number);
   return s+i;
 }
 
@@ -214,7 +214,7 @@ int get_andor(command_t c, struct token *s, int n) {
   else if (found->type == OR)
     c->type = OR_COMMAND;
   else
-    error(1, 0, "line number: %d", found->line_number);
+    error(1, 0, "%d: AND/OR syntax error", found->line_number);
 
   c->status = -1; 
   c->input = NULL;
@@ -249,7 +249,7 @@ int get_pipeline(command_t c, struct token *s, int n) {
 void get_simple(command_t c, struct token *s, int n) 
 {
   if (n == 0)
-    error(1, 0, "line number: %d", 42);
+    error(1, 0, "%d: Expected simple command", s[0].line_number);
 
   c->type = SIMPLE_COMMAND;
   c->status = -1;
@@ -261,7 +261,7 @@ void get_simple(command_t c, struct token *s, int n)
   c->u.word = (char **) checked_malloc(sizeof(char *));
   int i = 0;
   if (s[i].type != WORD)
-    error(1, 0, "line number: %d", s[i].line_number);
+    error(1, 0, "%d: Expected a word", s[i].line_number);
   while(s[i].type == WORD) {
     c->u.word[word_count] = s[i].word;
     word_count++;
@@ -274,19 +274,19 @@ void get_simple(command_t c, struct token *s, int n)
   if (s[i].type == LEFT_BRACKET) {
     i++;
     if (s[i].type != WORD)
-      error(1, 0, "line number: %d", s[i].line_number);
+      error(1, 0, "%d: Expected a word", s[i].line_number);
     c->input = s[i].word;
     i++;
   }
   if (s[i].type == RIGHT_BRACKET) {
     i++;
     if (s[i].type != WORD)
-      error(1, 0, "line number: %d", s[i].line_number);
+      error(1, 0, "%d: Expected a word", s[i].line_number);
     c->output = s[i].word;
     i++;
   }
   if (i != n)
-    error(1, 0, "line number: %d", s[i].line_number);
+    error(1, 0, "%d: Unexpected number of tokens or words", s[i].line_number);
 }
        
 
@@ -322,23 +322,31 @@ make_command_stream (int (*get_next_byte) (void *),
     if (nextchar=='#') {
       while(nextchar!='\n')
         nextchar = get_next_byte(get_next_byte_argument);
-    } 
+    }
+    //NOT SURE IF THIS WORKS
+    enum token_type prev_token = WORD;
+    if(token_pos>0)
+    {
+        prev_token = tokens[token_pos-1].type;
+    }
     if (isspace(nextchar)) {
       if (buffer_pos != 0) {
         tokens[token_pos] = create_word_token(buffer, buffer_pos, line_number);
         token_pos++;
+        prev_token = tokens[token_pos-1].type;
 
         memset(buffer, 0, buffer_pos);
         buffer_pos = 0;
       }
       if (nextchar != '\n') {
         newline = 0;
-      } else { enum token_type prev_token = tokens[token_pos-1].type;
+      } 
+      else { 
         if (prev_token == SEMICOLON || prev_token == AND || prev_token == OR ||
             prev_token == PIPE || prev_token == LEFT_PAREN ||
             prev_token == RIGHT_PAREN) {
         } else if (prev_token == LEFT_BRACKET || prev_token == RIGHT_BRACKET) {
-          error(1, 0, "line number: %d", line_number);
+          error(1, 0, "%d: unexpected newline", line_number);
         } else {
           tokens[token_pos] = create_token(SEMICOLON, line_number);
           token_pos++;
@@ -360,53 +368,68 @@ make_command_stream (int (*get_next_byte) (void *),
 
         memset(buffer, 0, buffer_pos);
         buffer_pos = 0;
-
+        prev_token = tokens[token_pos-1].type;
         if (token_pos * sizeof(struct token) == token_size) {
           tokens = checked_grow_alloc(tokens, &token_size);
         }
       }
-      if (tokens[token_pos-1].type != WORD && token_pos != 0)
-        error(1, 0, "line number: %d", line_number);
+
       if (nextchar == '(') {
+        if(prev_token!=LEFT_PAREN && prev_token!=AND && prev_token!=OR && prev_token!=SEMICOLON)
+            error(1, 0, "%d: unexpected left paren", line_number);
         tokens[token_pos] = create_token(LEFT_PAREN, line_number);
         token_pos++;
       } else if (nextchar == ')') {
+          if(prev_token!=WORD && prev_token!=RIGHT_PAREN && prev_token!=SEMICOLON)
+              error(1, 0, "%d: unexpected right paren", line_number);
         tokens[token_pos] = create_token(RIGHT_PAREN, line_number);
         token_pos++;
       } else if (newline) {
-        error(1, 0, "line number: %d", line_number);
+        error(1, 0, "%d: unexpected token", line_number);
       } else if (nextchar == ';') {
+        if(prev_token!=WORD)
+            error(1, 0, "%d: unexpected token", line_number);
         tokens[token_pos] = create_token(SEMICOLON, line_number);
         token_pos++;
       } else if (nextchar == '&') {
+        if(prev_token!=WORD && prev_token!=RIGHT_PAREN)
+            error(1, 0, "%d: unexpected token", line_number);
         nextchar = get_next_byte(get_next_byte_argument);
         if (nextchar != '&') {
-          error(1, 0, "line number: %d", line_number);
+          error(1, 0, "%d: expected &", line_number);
         }
         tokens[token_pos] = create_token(AND, line_number);
         token_pos++;
-      } else if (nextchar == '|') {
+      } else if (nextchar == '|') { 
         nextchar = get_next_byte(get_next_byte_argument);
         if (nextchar == '|') {
+          if (prev_token!=WORD && prev_token!=RIGHT_PAREN)
+              error(1, 0, "%d: unexpected token", line_number);
           tokens[token_pos] = create_token(OR, line_number);
           token_pos++;
         } else {
+          if (prev_token!=WORD)
+             error(1, 0, "%d: unexpected token", line_number);
           tokens[token_pos] = create_token(PIPE, line_number);
           token_pos++;
           continue;
         }
       } else if (nextchar == '<') {
+        if( prev_token!=WORD)
+            error(1, 0, "%d: unexpected input", line_number);
         tokens[token_pos] = create_token(LEFT_BRACKET, line_number);
         token_pos++;
       } else if (nextchar == '>') {
+        if( prev_token!=WORD)
+            error(1, 0, "%d: unexpected output", line_number);
         tokens[token_pos] = create_token(RIGHT_BRACKET, line_number);
         token_pos++;
       } else {
-        error(1, 0, "line number: %d", line_number);
+        error(1, 0, "%d: unexpected character", line_number);
       }
       newline = 0;
     } else {
-      error(1, 0, "line number: %d", line_number);
+      error(1, 0, "%d: unexpected character", line_number);
     }
     nextchar = get_next_byte(get_next_byte_argument);
   }
@@ -420,7 +443,7 @@ make_command_stream (int (*get_next_byte) (void *),
     token_pos--;
   }
   if (token_pos == 0)
-    error(1, 0, "line number: %d", line_number);
+    error(1, 0, "%d: syntax error", line_number);
   ret_stream->root = (command_t) checked_malloc(sizeof(struct command));
   get_command(ret_stream->root, tokens, token_pos);
   free(tokens);
@@ -443,5 +466,4 @@ read_command_stream (command_stream_t s)
     s->root = s->root->u.command[1];
   }
 
-  return ret;
-}
+  return ret;}
