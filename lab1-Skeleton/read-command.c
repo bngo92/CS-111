@@ -128,15 +128,17 @@ struct token* find_matching_paren(struct token* s, int n)
   int line_number = -1;
   int depth = 0;
   int i = 0; 
-  while(i < n) {
+  do {
     if (s[i].type == LEFT_PAREN) {
       depth++;
     } else if (s[i].type == RIGHT_PAREN) {
       depth--;
+      if (depth < 0)
+        error(1, 0, "%d: syntax error", line_number);
     }
     line_number = s[i].line_number;
     i++;
-  }
+  } while (depth != 0 && i < n);
   if (depth != 0)
     error(1, 0, "%d: Expecting another parentheses", line_number);
   return s+i;
@@ -191,7 +193,7 @@ int get_subshell(command_t c, struct token *s, int n)
   c->input = NULL;
   c->output = NULL;
  
-  c->u.subshell_command = (command_t) checked_malloc(sizeof(struct command*));
+  c->u.subshell_command = (command_t) checked_malloc(sizeof(struct command));
   get_command(c->u.subshell_command, s + 1, n - 2);
   return 1;
 }
