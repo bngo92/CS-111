@@ -20,8 +20,7 @@ enum token_type
   LEFT_PAREN,
   RIGHT_PAREN,
   LEFT_BRACKET,
-  RIGHT_BRACKET,
-  END
+  RIGHT_BRACKET
 };
 
 struct token
