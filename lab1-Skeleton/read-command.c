@@ -47,15 +47,6 @@ struct token *find_token(struct token *a, enum token_type t, int n)
   return NULL;
 }
 
-struct token *find_last_token(struct token *a, enum token_type t, int n)
-{
-  int i = n-1;
-  for (; i >= 0; i--)
-    if (a[i].type == t)
-      return a + i;
-  return NULL;
-}
-
 struct token create_token(enum token_type type, int line_number)
 {
   struct token ret;
@@ -132,18 +123,23 @@ struct token *find_either(struct token *s, enum token_type t1, enum token_type t
     return found2;
 }
 
-struct token *find_last_either(struct token *s, enum token_type t1, enum token_type t2, int n)
+//ignores tokens found within subshells
+struct token *find_last_andor(struct token *s, int n)
 {
-  struct token *found1 = find_last_token(s, t1, n);
-  struct token *found2 = find_last_token(s, t2, n);
-  if (found1 == NULL && found2 == NULL)
-    return NULL;
-  else if (found1 != NULL && found2 != NULL)
-    return (found1 > found2) ? found1 : found2;
-  else if (found1 != NULL)
-    return found1;
-  else
-    return found2;
+	int i = n-1;
+	int depth =0;
+  for(; i>=0; i--)
+	{
+		if(depth==0 && (s[i].type==AND || s[i].type==OR))
+				return s+i;
+		if(s[i].type==RIGHT_PAREN)
+				depth ++;
+		else if(s[i].type==LEFT_PAREN)
+				depth --;
+
+	}
+	return NULL;
+
 }
 
 /*
@@ -152,7 +148,7 @@ struct token *find_last_either(struct token *s, enum token_type t1, enum token_t
 */
 struct token* find_matching_paren(struct token* s, int n)
 {
-  int line_number = -1;
+  int line_number = s->line_number;
   int depth = 0;
   int i = 0; 
   do {
@@ -221,7 +217,7 @@ int get_subshell(command_t c, struct token *s, int n)
   if(find_matching_paren(s, n) != s + n - 1) {
     return 0;
   }
-
+  //TODO:
   c->type = SUBSHELL_COMMAND;
   c->status = -1;
   c->input = NULL;
@@ -229,11 +225,12 @@ int get_subshell(command_t c, struct token *s, int n)
  
   c->u.subshell_command = (command_t) checked_malloc(sizeof(struct command));
   get_command(c->u.subshell_command, s + 1, n - 2);
+  
   return 1;
 }
 
 int get_andor(command_t c, struct token *s, int n) {
-  struct token *found = find_last_either(s, AND, OR, n);
+  struct token *found = find_last_andor(s, n);
   
   if (found == NULL)
     return 0;
@@ -344,7 +341,7 @@ make_command_stream (int (*get_next_byte) (void *),
   char nextchar = (char) get_next_byte(get_next_byte_argument);
   while(nextchar != EOF) {
     //update buffer size as necessary
-    if (token_pos * sizeof(struct token) == token_size) {
+    if (token_pos * sizeof(struct token) >= token_size / 2) {
       tokens = checked_grow_alloc(tokens, &token_size);
     }
     if (nextchar=='#') {
@@ -352,7 +349,7 @@ make_command_stream (int (*get_next_byte) (void *),
         nextchar = get_next_byte(get_next_byte_argument);
     }
 
-    enum token_type prev_token;
+    enum token_type prev_token = WORD;
     if (token_pos != 0) {
       prev_token = tokens[token_pos-1].type;
     }
@@ -371,6 +368,7 @@ make_command_stream (int (*get_next_byte) (void *),
       else { 
         if (prev_token == SEMICOLON || prev_token == AND || prev_token == OR ||
             prev_token == PIPE || prev_token == LEFT_PAREN || token_pos == 0) {
+		//bryan has terrible style
         } else if (prev_token == LEFT_BRACKET || prev_token == RIGHT_BRACKET) {
           error(1, 0, "%d: unexpected newline", line_number);
         } else {
@@ -401,13 +399,20 @@ make_command_stream (int (*get_next_byte) (void *),
       }
 
       if (nextchar == '(') {
+	if (token_pos!=0 && prev_token == WORD)
+          error(1, 0, "%d: unexpected left paren", line_number);
         tokens[token_pos] = create_token(LEFT_PAREN, line_number);
         token_pos++;
       } else if (nextchar == ')') {
-        if(prev_token != WORD)
-          error(1, 0, "%d: unexpected right paren", line_number);
-        tokens[token_pos] = create_token(RIGHT_PAREN, line_number);
-        token_pos++;
+	if (prev_token == SEMICOLON) {
+	  tokens[token_pos-1].type = RIGHT_PAREN;
+	  tokens[token_pos-1].line_number = line_number;
+        } else {
+	  if(prev_token != WORD && prev_token != SEMICOLON && prev_token != RIGHT_PAREN)
+	    error(1, 0, "%d: unexpected right paren", line_number);
+	  tokens[token_pos] = create_token(RIGHT_PAREN, line_number);
+	  token_pos++;
+	}
       } else if (newline || (prev_token != WORD && prev_token != RIGHT_PAREN)) {
         error(1, 0, "%d: unexpected token", line_number);
       } else if (nextchar == ';') {
@@ -431,12 +436,12 @@ make_command_stream (int (*get_next_byte) (void *),
           continue;
         }
       } else if (nextchar == '<') {
-        if( prev_token!=WORD)
+        if( prev_token!=WORD && prev_token!=RIGHT_PAREN)
             error(1, 0, "%d: unexpected input", line_number);
         tokens[token_pos] = create_token(LEFT_BRACKET, line_number);
         token_pos++;
       } else if (nextchar == '>') {
-        if( prev_token!=WORD)
+        if( prev_token!=WORD && prev_token!=RIGHT_PAREN)
             error(1, 0, "%d: unexpected output", line_number);
         tokens[token_pos] = create_token(RIGHT_BRACKET, line_number);
         token_pos++;

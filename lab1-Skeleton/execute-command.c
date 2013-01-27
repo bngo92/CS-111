@@ -20,16 +20,97 @@ command_status (command_t c)
   return c->status;
 }
 
+void fill_input(command_t c, char *s)
+{
+    switch (c->type) {
+    case AND_COMMAND:
+    case SEQUENCE_COMMAND:
+    case OR_COMMAND:
+    case PIPE_COMMAND:
+      {
+	fill_output(c->u.command[0], s);
+	break;
+      }
+    case SIMPLE_COMMAND:
+      {
+	if (c->input == NULL)
+	  c->input = s;
+	break;
+      }
+
+    case SUBSHELL_COMMAND:
+      {
+	fill_output(c->u.subshell_command, s);
+	break;
+      }
+    }
+}
+
+void fill_input(command_t c, char *s)
+{
+    switch(c->type){
+	case AND_COMMAND:
+	case SEQUENCE_COMMAND:
+	case OR_COMMAND:
+	    fill_input(c->u.command[1],s);
+	case PIPE_COMMAND:
+	{
+	    fill_input(c->u.command[0],s);
+	    break;
+	}
+	case SIMPLE_COMMAND:
+	{
+	    if (c->input == NULL)
+		c->input = s;
+	    break;
+	}
+	case SUBSHELL_COMMAND:
+	{
+	    fill_input(c->u.subshell_command, s);
+	    break;
+	}
+    }
+
+}
+
+void fill_output(command_t c, char *s) 
+{
+    switch (c->type) {
+    case AND_COMMAND:
+    case SEQUENCE_COMMAND:
+    case OR_COMMAND:
+	fill_output(c->u.command[0], s);
+    case PIPE_COMMAND:
+      {
+	fill_output(c->u.command[1], s);
+	break;
+      }
+    case SIMPLE_COMMAND:
+      {
+	if (c->output == NULL)
+	  c->output = s;
+	break;
+      }
+
+    case SUBSHELL_COMMAND:
+      {
+	fill_output(c->u.subshell_command, s);
+	break;
+      }
+    }
+}
+
 static void
 command_print (command_t c)
 {
+  static int file_counter = 1000;
   switch (c->type)
     {
     case AND_COMMAND:
       {
 	command_print(c->u.command[0]);
-	if (!c->u.command[0]->status) {
-	  c->status = 0;
+	if (c->u.command[0]->status != 0) {
+	  c->status = c->u.command[0]->status;
 	  return;
 	} 
 	command_print(c->u.command[1]);
@@ -40,13 +121,14 @@ command_print (command_t c)
       {
 	command_print(c->u.command[0]);
 	command_print(c->u.command[1]);
+	c->status = c->u.command[1]->status;
 	break;
       }
     case OR_COMMAND:
       {
         command_print(c->u.command[0]);
-	if (c->u.command[0]->status) {
-	  c->status = 1;
+	if (c->u.command[0]->status == 0) {
+	  c->status = c->u.command[0]->status;
 	  return;
 	}
 	command_print(c->u.command[1]);
@@ -55,17 +137,20 @@ command_print (command_t c)
       }
     case PIPE_COMMAND:
       {
+	char buffer[80];
+	sprintf(buffer, "%d.tmp", getpid());
+        if ((c->u.command[0]->type == SUBSHELL_COMMAND || c->u.command[0].type == SIMPLE_COMMAND) &&
+			((c->u.command[1]->type == SUBSHELL_COMMAND || c->u.command[1].type == SIMPLE_COMMAND)) {
 	if (c->u.command[0]->output == NULL && c->u.command[1]->input == NULL) {
-	  char buffer[80];
-	  sprintf(buffer, "%d.tmp", getpid());
 	  c->u.command[0]->output = checked_malloc(strlen(buffer) + 1);
 	  strcpy(c->u.command[0]->output, buffer);
 	  c->u.command[1]->input = checked_malloc(strlen(buffer) + 1);
 	  strcpy(c->u.command[1]->input, buffer);
 	}
 	command_print(c->u.command[0]);
-	if (c->u.command[0]->status)
-	  command_print(c->u.command[1]);
+	command_print(c->u.command[1]);
+	c->status = c->u.command[1]->status;
+	remove(buffer);
 	break;
       }
     case SIMPLE_COMMAND:
@@ -82,7 +167,8 @@ command_print (command_t c)
 	} else {
 	  wait(&status);
 	}
-	c->status = WIFEXITED(status) && !WEXITSTATUS(status);
+	c->status = WEXITSTATUS(status);
+	//c->status = !(WIFEXITED(status) && WEXITSTATUS(status)==0);
 	break;
       }
 
