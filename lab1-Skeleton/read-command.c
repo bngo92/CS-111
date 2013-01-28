@@ -214,17 +214,39 @@ int get_subshell(command_t c, struct token *s, int n)
   if (s->type != LEFT_PAREN) {
     return 0;
   }
-  if(find_matching_paren(s, n) != s + n - 1) {
-    return 0;
-  }
-  //TODO:
-  c->type = SUBSHELL_COMMAND;
-  c->status = -1;
   c->input = NULL;
   c->output = NULL;
+
+  int extra_args = 2;
+  struct token *found = find_matching_paren(s, n);
+  found++;
+  if (found->type == LEFT_BRACKET) {
+	  found++;
+	  if (found->type != WORD)
+		  error(1, 0, "%d: Expected a word", found->line_number);
+	  c->input = found->word;
+	  found++;
+	  extra_args += 2;
+  }
+  if (found->type == RIGHT_BRACKET) {
+	  found++;
+	  if (found->type != WORD)
+		  error(1, 0, "%d: Expected a word", found->line_number);
+	  c->output = found->word;
+	  found++;
+	  extra_args += 2;
+  }
+  if (found < s + n) {
+    return 0;
+  }
+  else if (found > s + n)
+    error(1, 0, "%d: Unexpected number of tokens or words", found->line_number);
+
+  c->type = SUBSHELL_COMMAND;
+  c->status = -1;
  
   c->u.subshell_command = (command_t) checked_malloc(sizeof(struct command));
-  get_command(c->u.subshell_command, s + 1, n - 2);
+  get_command(c->u.subshell_command, s + 1, n - extra_args);
   
   return 1;
 }
