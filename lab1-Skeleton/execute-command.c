@@ -70,10 +70,15 @@ command_print (command_t c)
 					command_print(c->u.command[0]);
 					_exit(0);
 				} else { // read from pipe
-					close(pipefd[1]);
-					dup2(pipefd[0], STDIN_FILENO);
+					wait(NULL);
+				}
+				close(pipefd[1]);
+				dup2(pipefd[0], STDIN_FILENO);
+				close(pipefd[0]);
+				if (fork() == 0) {
 					command_print(c->u.command[1]);
-					close(pipefd[0]);
+					_exit(0);
+				} else {
 					wait(NULL);
 				}
 				dup2(fd[0], STDIN_FILENO);
@@ -84,8 +89,7 @@ command_print (command_t c)
 		case SIMPLE_COMMAND:
 			{
 				int status = 0;
-				pid_t pid = fork();
-				if (pid == 0) {
+				if (strcmp(c->u.word[0], "exec") == 0) {
 					int in, out;
 					if (c->input) {
 						in = open(c->input, O_RDONLY);
@@ -97,35 +101,57 @@ command_print (command_t c)
 						dup2(out, STDOUT_FILENO);
 						close(out);
 					}
-					execvp(c->u.word[0], c->u.word);
+					execvp(c->u.word[1], c->u.word+1);
 					_exit(-1);
-				} else {
-					wait(&status);
 				}
-				c->status = WEXITSTATUS(status);
-				//c->status = !(WIFEXITED(status) && WEXITSTATUS(status)==0);
+				else {
+					if (fork() == 0) {
+						int in, out;
+						if (c->input) {
+							in = open(c->input, O_RDONLY);
+							dup2(in, STDIN_FILENO);
+							close(in);
+						}
+						if (c->output) {
+							out = creat(c->output, S_IRUSR|S_IWUSR);
+							dup2(out, STDOUT_FILENO);
+							close(out);
+						}
+						execvp(c->u.word[0], c->u.word);
+						_exit(-1);
+					} else {
+						wait(&status);
+					}
+					c->status = WEXITSTATUS(status);
+					//c->status = !(WIFEXITED(status) && WEXITSTATUS(status)==0);
+				}
 				break;
 			}
 		case SUBSHELL_COMMAND:
 			{
-				int fd[2];
-				fd[0] = dup(STDIN_FILENO);
-				fd[1] = dup(STDOUT_FILENO);
-				int in, out;
-				if (c->input) {
-					in = open(c->input, O_RDONLY);
-					dup2(in, STDIN_FILENO);
-					close(in);
+				if (fork() == 0) {
+					int fd[2];
+					fd[0] = dup(STDIN_FILENO);
+					fd[1] = dup(STDOUT_FILENO);
+					int in, out;
+					if (c->input) {
+						in = open(c->input, O_RDONLY);
+						dup2(in, STDIN_FILENO);
+						close(in);
+					}
+					if (c->output) {
+						out = creat(c->output, S_IRWXU);
+						dup2(out, STDOUT_FILENO);
+						close(out);
+					}
+					command_print(c->u.subshell_command);
+					dup2(fd[0], STDIN_FILENO);
+					dup2(fd[1], STDOUT_FILENO);
+					c->status = c->u.subshell_command->status;
+					_exit(c->status);
+				} else {
+					wait(NULL);
 				}
-				if (c->output) {
-					out = creat(c->output, S_IRWXU);
-					dup2(out, STDOUT_FILENO);
-					close(out);
-				}
-				command_print(c->u.subshell_command);
-				dup2(fd[0], STDIN_FILENO);
-				dup2(fd[1], STDOUT_FILENO);
-				c->status = c->u.subshell_command->status;
 				break;
 			}
 		}

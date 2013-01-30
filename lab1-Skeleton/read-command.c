@@ -128,18 +128,33 @@ struct token *find_last_andor(struct token *s, int n)
 {
 	int i = n-1;
 	int depth =0;
-  for(; i>=0; i--)
+	for(; i>=0; i--)
 	{
 		if(depth==0 && (s[i].type==AND || s[i].type==OR))
-				return s+i;
+			return s+i;
 		if(s[i].type==RIGHT_PAREN)
-				depth ++;
+			depth ++;
 		else if(s[i].type==LEFT_PAREN)
-				depth --;
+			depth --;
 
 	}
 	return NULL;
 
+}
+
+struct token *find_pipe(struct token *s, int n)
+{
+	int i;
+	int depth = 0;
+	for (i = 0; i < n; i++) {
+		if(depth == 0 && s[i].type == PIPE)
+			return s+i;
+		if(s[i].type == RIGHT_PAREN)
+			depth++;
+		else if(s[i].type == LEFT_PAREN)
+			depth--;
+	}
+	return NULL;
 }
 
 /*
@@ -275,7 +290,7 @@ int get_andor(command_t c, struct token *s, int n) {
 }
 
 int get_pipeline(command_t c, struct token *s, int n) {
-  struct token *found = find_token(s, PIPE, n);
+  struct token *found = find_pipe(s, n);
   if (found == NULL)
     return 0;
 
