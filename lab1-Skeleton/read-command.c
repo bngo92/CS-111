@@ -76,17 +76,8 @@ int iswordchar(char c)
   if (isalpha(c) || isdigit(c))
     return 1;
   switch (c) {
-  case '!':
-  case '%':
-  case '+':
-  case ',':
-  case '-':
-  case '.':
-  case '/':
-  case ':':
-  case '@':
-  case '^':
-  case '_':
+  case '!': case '%': case '+': case ',': case '-': case '.': case '/':
+  case ':': case '@': case '^': case '_':
     return 1;
   default:
     return 0;
@@ -96,13 +87,7 @@ int iswordchar(char c)
 int isToken(char c)
 {
     switch (c) {
-    case ';':
-    case '&':
-    case '|':
-    case '<':
-    case '>':
-    case '(':
-    case ')':
+    case ';': case '&': case '|': case '<': case '>': case '(': case ')':
         return 1; 
     default:
         return 0;

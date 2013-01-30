@@ -78,14 +78,13 @@ command_print (command_t c)
 				close(pipefd[0]);
 				if (fork() == 0) {
 					command_print(c->u.command[1]);
-					_exit(0);
+					_exit(c->u.command[1]->status);
 				} else {
 					wait(&status);
 				}
 				dup2(fd[0], STDIN_FILENO);
 				dup2(fd[1], STDOUT_FILENO);
-				c->status = (c->u.command[1]->status != -1) ? 
-					c->u.command[1]->status : WEXITSTATUS(status);
+				c->status = WEXITSTATUS(status);
 				break;
 			}
 		case SIMPLE_COMMAND:
@@ -149,8 +148,7 @@ command_print (command_t c)
 					command_print(c->u.subshell_command);
 					dup2(fd[0], STDIN_FILENO);
 					dup2(fd[1], STDOUT_FILENO);
-					c->status = c->u.subshell_command->status;
-					_exit(c->status);
+					_exit(c->u.subshell_command->status);
 				} else {
 					int status;
 					wait(&status);
