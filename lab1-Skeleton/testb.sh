@@ -27,17 +27,13 @@ echo hello again
 
 (ls .. | (grep test | ( ls .. && cat | sort) ) ) && (echo complicated things && (ls .. | sort) )
 
-# this stuff gets weird
-#cat dfghjkl && echo five
-#echo six || cat asdhfkl
 echo seven
 
+(echo one | exec sort; echo two) |
+(ls .. | exec sort | exec cat &&
+exec ls .. | exec grep st > a.tmp; echo four)
 
 EOF
-
-#cat >test.exp <<'EOF'
-#hello world
-#EOF
 
 chmod 777 test.sh
 ./test.sh >test.exp

@@ -72,6 +72,7 @@ command_print (command_t c)
 				} else { // read from pipe
 					wait(NULL);
 				}
+				int status;
 				close(pipefd[1]);
 				dup2(pipefd[0], STDIN_FILENO);
 				close(pipefd[0]);
@@ -79,11 +80,12 @@ command_print (command_t c)
 					command_print(c->u.command[1]);
 					_exit(0);
 				} else {
-					wait(NULL);
+					wait(&status);
 				}
 				dup2(fd[0], STDIN_FILENO);
 				dup2(fd[1], STDOUT_FILENO);
-				c->status = c->u.command[1]->status;
+				c->status = (c->u.command[1]->status != -1) ? 
+					c->u.command[1]->status : WEXITSTATUS(status);
 				break;
 			}
 		case SIMPLE_COMMAND:
@@ -150,7 +152,9 @@ command_print (command_t c)
 					c->status = c->u.subshell_command->status;
 					_exit(c->status);
 				} else {
-					wait(NULL);
+					int status;
+					wait(&status);
+					c->status = WEXITSTATUS(status);
 				}
 				break;
 			}
