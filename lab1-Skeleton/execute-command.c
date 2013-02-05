@@ -197,22 +197,6 @@ void fill(struct d_pair *pair, command_t c)
             pair->input = checked_grow_alloc(pair->input, &pair->input_max);
     }
 
-    char **temp = c->u.word;
-    while (temp != NULL && *temp!=NULL) {
-        pair->input[pair->input_size] = *temp;
-        pair->input_size++;
-        if (pair->input_size * sizeof(char *) >= pair->input_max/ 2)
-            pair->input = checked_grow_alloc(pair->input, &pair->input_max);
-		temp++;
-    }
-
-	if (c->output) {
-        pair->output[pair->output_size] = c->output;
-        pair->output_size++;
-        if (pair->output_size * sizeof(char *) >= pair->output_max/ 2)
-            pair->output = checked_grow_alloc(pair->output, &pair->output_max);
-    }
-
     switch (c->type) {
     case AND_COMMAND:
     case OR_COMMAND:
@@ -224,6 +208,24 @@ void fill(struct d_pair *pair, command_t c)
     case SUBSHELL_COMMAND:
         fill(pair, c->u.subshell_command);
         break;
+    case SIMPLE_COMMAND:
+    {
+        char **temp = c->u.word;
+        while (temp != NULL && *temp!=NULL) {
+            pair->input[pair->input_size] = *temp;
+            pair->input_size++;
+            if (pair->input_size * sizeof(char *) >= pair->input_max/ 2)
+                pair->input = checked_grow_alloc(pair->input, &pair->input_max);
+            temp++;
+        }
+
+        if (c->output) {
+            pair->output[pair->output_size] = c->output;
+            pair->output_size++;
+            if (pair->output_size * sizeof(char *) >= pair->output_max/ 2)
+                pair->output = checked_grow_alloc(pair->output, &pair->output_max);
+        }
+    }
     default:
         pair->input[pair->input_size] = NULL;
         pair->output[pair->output_size] = NULL;
@@ -316,15 +318,29 @@ int execute_command_stream(command_stream_t command_stream) //DESIGN PROBLEM: , 
                 } else {
                     c_array[i].ran = RUNNING;
                     pid_set[i] = pid;
+                    //printf("%d: %d started\n", i, pid_set[i]);
                 }
             }
         }
 
+        int b = 0;
         for (i = start; i < size; i++) {
+            if (c_array[i].ran != RUNNING)
+                continue;
+            //printf("%d: %d checked\n", i, pid_set[i]);
             if (waitpid(pid_set[i], NULL, WNOHANG) > 0) {
+                //printf("%d ended\n", pid_set[i]);
+                //printf("OHLOOK ITS DONE %d \n", i);
                 c_array[i].ran = RAN;
+                b = 1;
             }
         }
+
+        //if (!b) {
+            //waitpid(pid_set[start], NULL, 0);
+            //c_array[start].ran = RAN;
+            //printf("%d ended\n", pid_set[start]);
+        //}
 
         // skip already ran processes
         while (c_array[start].ran == RAN) {
