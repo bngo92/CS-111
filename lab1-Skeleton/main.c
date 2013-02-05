@@ -4,8 +4,10 @@
 #include <error.h>
 #include <getopt.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "command.h"
+#include "limit-parallel.h"
 
 static char const *program_name;
 static char const *script_name;
@@ -37,9 +39,15 @@ int main (int argc, char **argv)
 		}
 	options_exhausted:;
 
-	  // There must be exactly one file argument.
-		if (optind != argc - 1)
+		if (time_travel && optind == argc - 2) {
+			int n = atoi(argv[optind+1]);
+			if (n <= 0)
+				usage();
+			setparallel((size_t) n);
+		} else if (optind != argc - 1) {
 			usage ();
+		} else
+			setparallel((size_t) -1);
 
 		script_name = argv[optind];
 		FILE *script_stream = fopen (script_name, "r");

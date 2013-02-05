@@ -3,6 +3,7 @@
 #include "alloc.h"
 #include "command.h"
 #include "command-internals.h"
+#include "limit-parallel.h"
 
 #include <error.h>
 #include <fcntl.h>
@@ -80,7 +81,7 @@ command_print (command_t c)
 					command_print(c->u.command[1]);
 					_exit(c->u.command[1]->status);
 				} else {
-					wait(&status);
+					limitwait(&status);
 				}
 				dup2(fd[0], STDIN_FILENO);
 				dup2(fd[1], STDOUT_FILENO);
@@ -311,14 +312,15 @@ int execute_command_stream(command_stream_t command_stream) //DESIGN PROBLEM: , 
                 }
             }
             if (!fail) {
-                pid_t pid = fork();
-                if(pid == 0) {
+                pid_t pid = limitfork();
+                if (pid == -1) {
+			break;
+		} else if(pid == 0) {
                     command_print(c_array[i].c);
                     _exit(c_array[i].c->status);
                 } else {
                     c_array[i].ran = RUNNING;
                     pid_set[i] = pid;
-                    //printf("%d: %d started\n", i, pid_set[i]);
                 }
             }
         }
@@ -327,20 +329,11 @@ int execute_command_stream(command_stream_t command_stream) //DESIGN PROBLEM: , 
         for (i = start; i < size; i++) {
             if (c_array[i].ran != RUNNING)
                 continue;
-            //printf("%d: %d checked\n", i, pid_set[i]);
-            if (waitpid(pid_set[i], NULL, WNOHANG) > 0) {
-                //printf("%d ended\n", pid_set[i]);
-                //printf("OHLOOK ITS DONE %d \n", i);
+            if (limitwaitpid(pid_set[i], NULL, WNOHANG) > 0) {
                 c_array[i].ran = RAN;
                 b = 1;
             }
         }
-
-        //if (!b) {
-            //waitpid(pid_set[start], NULL, 0);
-            //c_array[start].ran = RAN;
-            //printf("%d ended\n", pid_set[start]);
-        //}
 
         // skip already ran processes
         while (c_array[start].ran == RAN) {

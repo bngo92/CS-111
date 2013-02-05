@@ -1,5 +1,7 @@
 #include "limit-parallel.h"
 
+#include <sys/wait.h>
+
 static size_t current_processes = 0;
 static size_t max_processes = 0;
 
@@ -16,7 +18,20 @@ pid_t limitfork()
 	return fork();
 }
 
-pid_t limitwait(pid_t pid, int *status, int options)
+pid_t limitwait(int *status)
+{
+	if (current_processes == 0)
+		return -1;
+	pid_t ret = wait(status);
+	if (ret == -1)
+		return -1;
+	if (ret == 0)
+		return ret;
+	current_processes--;
+	return ret;
+}
+
+pid_t limitwaitpid(pid_t pid, int *status, int options)
 {
 	if (current_processes == 0)
 		return -1;
