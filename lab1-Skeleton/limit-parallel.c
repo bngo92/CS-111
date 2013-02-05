@@ -1,16 +1,16 @@
 #include "limit-parallel.h"
 
-static int current_processes = 0;
-static int max_processes = 0;
+static size_t current_processes = 0;
+static size_t max_processes = 0;
 
-void setparallel(int n)
+void setparallel(size_t n)
 {
 	max_processes = n;
 }
 
 pid_t limitfork()
 {
-	if (current_processes == max_processes)
+	if (current_processes >= max_processes)
 		return -1;
 	current_processes++;
 	return fork();
