@@ -1,5 +1,6 @@
 traceroute google.com
 sleep 30
+ping google.com
 echo hello world; echo goodbye; echo poop; ls; cat test; ls | grep test
 head /dev/urandom > a.tmp
 head /dev/urandom > b.tmp
@@ -14,3 +15,4 @@ echo a.tmp;
 echo a.tmp;
 echo a.tmp;
 echo a.tmp;
+cat /usr/share/dict/words

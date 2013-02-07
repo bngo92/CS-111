@@ -81,7 +81,7 @@ command_print (command_t c)
 					command_print(c->u.command[1]);
 					_exit(c->u.command[1]->status);
 				} else {
-					limitwait(&status);
+					wait(&status);
 				}
 				dup2(fd[0], STDIN_FILENO);
 				dup2(fd[1], STDOUT_FILENO);
@@ -125,7 +125,6 @@ command_print (command_t c)
 						wait(&status);
 					}
 					c->status = WEXITSTATUS(status);
-					//c->status = !(WIFEXITED(status) && WEXITSTATUS(status)==0);
 				}
 				break;
 			}

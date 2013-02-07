@@ -46,8 +46,7 @@ int main (int argc, char **argv)
 			setparallel((size_t) n);
 		} else if (optind != argc - 1) {
 			usage ();
-		} else
-			setparallel((size_t) -1);
+		}
 
 		script_name = argv[optind];
 		FILE *script_stream = fopen (script_name, "r");

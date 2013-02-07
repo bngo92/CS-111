@@ -3,7 +3,7 @@
 #include <sys/wait.h>
 
 static size_t current_processes = 0;
-static size_t max_processes = 0;
+static size_t max_processes = -1;
 
 void setparallel(size_t n)
 {
