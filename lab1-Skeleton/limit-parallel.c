@@ -1,12 +1,15 @@
 #include "limit-parallel.h"
 
+#include <limits.h>
 #include <sys/wait.h>
 
 static size_t current_processes = 0;
-static size_t max_processes = -1;
+static size_t max_processes = UINT_MAX;
 
 void setparallel(size_t n)
 {
+	if (n == 0)
+		return;
 	max_processes = n;
 }
 
