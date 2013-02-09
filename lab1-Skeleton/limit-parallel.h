@@ -3,7 +3,7 @@
 
 #include <unistd.h>
 
-void setparallel(size_t n);
+void setparallel(unsigned long int n);
 pid_t limitfork();
 pid_t limitwait(int *status);
 pid_t limitwaitpid(pid_t pid, int *status, int options);

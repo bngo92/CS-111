@@ -3,10 +3,10 @@
 #include <limits.h>
 #include <sys/wait.h>
 
-static size_t current_processes = 0;
-static size_t max_processes = UINT_MAX;
+static unsigned long int current_processes = 0;
+static unsigned long int max_processes = ULONG_MAX;
 
-void setparallel(size_t n)
+void setparallel(unsigned long int n)
 {
 	if (n == 0)
 		return;
