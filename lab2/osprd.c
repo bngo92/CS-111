@@ -33,8 +33,7 @@
 
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_DESCRIPTION("CS 111 RAM Disk");
-// EXERCISE: Pass your names into the kernel as the module's authors.
-MODULE_AUTHOR("Skeletor");
+MODULE_AUTHOR("Bryan & Rachel");
 
 #define OSPRD_MAJOR	222
 
@@ -107,6 +106,8 @@ static void for_each_open_file(struct task_struct *task,
  */
 static void osprd_process_request(osprd_info_t *d, struct request *req)
 {
+	int i;
+	void *src, *dst;
 	if (!blk_fs_request(req)) {
 		end_request(req, 0);
 		return;
@@ -121,7 +122,15 @@ static void osprd_process_request(osprd_info_t *d, struct request *req)
 	// 'req->buffer' members, and the rq_data_dir() function.
 
 	// Your code here.
-	eprintk("Should process request...\n");
+	if (rq_data_dir(req) == WRITE) {
+		src = req->buffer;
+		dst = d->data + req->sector * SECTOR_SIZE;
+	} else {
+		src = d->data + req->sector * SECTOR_SIZE;
+		dst = req->buffer;
+	}
+	for (i = 0; i < req->current_nr_sectors; i++)
+		memcpy(dst + i * SECTOR_SIZE, src + i * SECTOR_SIZE, SECTOR_SIZE);
 
 	end_request(req, 1);
 }
