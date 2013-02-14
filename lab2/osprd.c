@@ -218,17 +218,15 @@ static int osprd_close_last(struct inode *inode, struct file *filp)
 		if (filp->f_flags & F_OSPRD_LOCKED) {
 			filp->f_flags &= ~F_OSPRD_LOCKED;
 			osp_spin_lock(&d->mutex);
-            if (filp_writable) { // write lock
-                delete(&d->write, current->pid);
-                //eprintk("closing write %d PID:%d \n", d->ticket_tail, current->pid);
+			if (filp_writable) { // write lock
+				//eprintk("closing write %d PID:%d \n", d->ticket_tail, current->pid);
 				d->write_tail++;
 			} else {
-                delete(&d->read, current->pid);
-                //eprintk("closing read %d PID:%d\n", d->ticket_tail, current->pid);
-            }
+				//eprintk("closing read %d PID:%d\n", d->ticket_tail, current->pid);
+			}
 			d->ticket_tail++;
 			wake_up_all(&d->blockq);
-            osp_spin_unlock(&d->mutex);
+			osp_spin_unlock(&d->mutex);
 		}
 		// This line avoids compiler warnings; you may remove it.
 		(void) filp_writable, (void) d;
@@ -299,46 +297,37 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 		// be protected by a spinlock; which ones?)
 
 		// Your code here (instead of the next two lines).
-		 osp_spin_lock(&d->mutex);
 		int local_ticket = d->ticket_head;
-        d->ticket_head++;
 		int local_writes = d->write_head;
+		osp_spin_lock(&d->mutex);
+		d->ticket_head++;
+		if (d->write_tail != d->write_head && d->locking_pid == current->pid) {
+			d->ticket_tail++;
+			osp_spin_unlock(&d->mutex);
+			return -EDEADLK;
+		}
 		if (filp_writable) {
-            if ((find(d->read, current->pid) || find(d->write, current->pid))
-                    && d->locking_pid == current->pid) {
-                d->ticket_tail++;
-                osp_spin_unlock(&d->mutex);
-                return -EDEADLK;
-            }
-            //eprintk("attempting write %d PID:%d\n", local_ticket, current->pid);
-            d->locking_pid = current->pid;
+			//eprintk("attempting write %d PID:%d\n", local_ticket, current->pid);
+			d->locking_pid = current->pid;
 			d->write_head++;
-            insert(&d->write, current->pid);
-            osp_spin_unlock(&d->mutex);
+			osp_spin_unlock(&d->mutex);
 			if (wait_event_interruptible(d->blockq, 
 						d->ticket_tail == local_ticket) == -ERESTARTSYS) {
-                osp_spin_lock(&d->mutex);
+				osp_spin_lock(&d->mutex);
 				d->ticket_tail++;
 				d->write_tail++;
-                osp_spin_unlock(&d->mutex);
+				osp_spin_unlock(&d->mutex);
 				return -ERESTARTSYS;
 			}
 		} else {
-            if (find(d->write, current->pid) && d->locking_pid == current->pid) {
-                d->ticket_tail++;
-                osp_spin_unlock(&d->mutex);
-                osp_spin_unlock(&d->mutex);
-                return -EDEADLK;
-            }
-            //eprintk("attenpt read %d PID:%d\n", local_ticket, current->pid);
-            osp_spin_unlock(&d->mutex);
+			//eprintk("attenpt read %d PID:%d\n", local_ticket, current->pid);
+			osp_spin_unlock(&d->mutex);
 			if (wait_event_interruptible(d->blockq, d->write_tail == local_writes) == -ERESTARTSYS) {
 				osp_spin_lock(&d->mutex);
-                d->ticket_tail++;
-                osp_spin_unlock(&d->mutex);
+				d->ticket_tail++;
+				osp_spin_unlock(&d->mutex);
 				return -ERESTARTSYS;
 			}
-            insert(&d->read, current->pid);
 		}
 		filp->f_flags |= F_OSPRD_LOCKED;
 		return 0;
@@ -353,20 +342,17 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 		// Otherwise, if we can grant the lock request, return 0.
 
 		// Your code here (instead of the next two lines).
-        osp_spin_lock(&d->mutex);
+		osp_spin_lock(&d->mutex);
 		if (filp_writable) {
 			if (d->ticket_tail != d->ticket_head) {
-                osp_spin_unlock(&d->mutex);
+				osp_spin_unlock(&d->mutex);
 				return -EBUSY;
 			}
-            insert(&d->write, current->pid);
 			d->write_head++;
 		} else if (d->write_tail != d->write_head) {        
-            osp_spin_unlock(&d->mutex);
+			osp_spin_unlock(&d->mutex);
 			return -EBUSY;
-		} else {
-            insert(&d->read, current->pid);
-        }
+		}
 		d->ticket_head++;
 		osp_spin_unlock(&d->mutex);
 		filp->f_flags |= F_OSPRD_LOCKED;
@@ -385,13 +371,13 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 		if (filp->f_flags & F_OSPRD_LOCKED)
 			return -EINVAL;
 		filp->f_flags &= ~F_OSPRD_LOCKED;
-        osp_spin_lock(&d->mutex);
+		osp_spin_lock(&d->mutex);
 		if (filp_writable) { // write lock
 			d->write_tail++;
 		}
 		d->ticket_tail++;
 		wake_up_all(&d->blockq);
-        osp_spin_unlock(&d->mutex);
+		osp_spin_unlock(&d->mutex);
 		return 0;
 
 	} else
@@ -410,7 +396,7 @@ static void osprd_setup(osprd_info_t *d)
 	d->ticket_head = d->ticket_tail = 0;
 	/* Add code here if you add fields to osprd_info_t. */
 	d->write_head = d->write_tail = 0;
-    d->locking_pid = 0;
+	d->locking_pid = 0;
 }
 
 

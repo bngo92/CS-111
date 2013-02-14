@@ -166,7 +166,13 @@ close FOO;
       ') 2>/dev/null',
       "aX"
     ],
+    [ '(echo foo | ./osprdaccess -r -l /dev/osprda -w -l 1 /dev/osprda)' ,
+      ""
+    ],
     [ '(echo foo | ./osprdaccess -w -l /dev/osprda /dev/osprda)' ,
+      "ioctl OSPRDIOCACQUIRE: Resource deadlock avoided"
+    ],
+    [ '(echo foo | ./osprdaccess -w -l /dev/osprda -r -l 1 /dev/osprda)' ,
       "ioctl OSPRDIOCACQUIRE: Resource deadlock avoided"
     ],
     [ '(echo foo | ./osprdaccess -w -l /dev/osprda /dev/osprdb & ' .
