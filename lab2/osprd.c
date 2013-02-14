@@ -301,12 +301,12 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 		int local_writes = d->write_head;
 		osp_spin_lock(&d->mutex);
 		d->ticket_head++;
-		if (d->write_tail != d->write_head && d->locking_pid == current->pid) {
-			d->ticket_tail++;
-			osp_spin_unlock(&d->mutex);
-			return -EDEADLK;
-		}
 		if (filp_writable) {
+			if (d->ticket_tail != d->ticket_head && d->locking_pid == current->pid) {
+				d->ticket_tail++;
+				osp_spin_unlock(&d->mutex);
+				return -EDEADLK;
+			}
 			//eprintk("attempting write %d PID:%d\n", local_ticket, current->pid);
 			d->locking_pid = current->pid;
 			d->write_head++;
@@ -320,7 +320,13 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 				return -ERESTARTSYS;
 			}
 		} else {
+			if (d->write_tail != d->write_head && d->locking_pid == current->pid) {
+				d->ticket_tail++;
+				osp_spin_unlock(&d->mutex);
+				return -EDEADLK;
+			}
 			//eprintk("attenpt read %d PID:%d\n", local_ticket, current->pid);
+			d->locking_pid = current->pid;
 			osp_spin_unlock(&d->mutex);
 			if (wait_event_interruptible(d->blockq, d->write_tail == local_writes) == -ERESTARTSYS) {
 				osp_spin_lock(&d->mutex);
