@@ -9,14 +9,20 @@
 # the end of the file.
 
 # Partner 1
-Name: Your Name Here
-Student ID: Your ID Here
-Email: Your Email Here
+Name: Rachel Fang
+Student ID: 104004868   
+Email: rfang@ucla.edu
 
 # Partner 2
-#Name: Partner's Name Here
-#Student ID: Partner's ID Here
-#Email: Partner's Email Here
+Name: Bryan Ngo
+Student ID: 503901486 
+Email: bngo92@gmail.com
 
 
 # Add any other information you'd like us to have below this line.
+Our code deadlocks when referring to itself and we can detect this:
+`echo foo | ./osprdaccess -w -l /dev/osprda /dev/osprda`
+
+However, we can't make our code deadlock in other situations so we are assuming it works.
+We try to make dependent processes but each process is always assi
+`

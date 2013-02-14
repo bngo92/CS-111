@@ -166,6 +166,13 @@ close FOO;
       ') 2>/dev/null',
       "aX"
     ],
+    [ '(echo foo | ./osprdaccess -w -l /dev/osprda /dev/osprda)' ,
+      "ioctl OSPRDIOCACQUIRE: Resource deadlock avoided"
+    ],
+    [ '(echo foo | ./osprdaccess -w -l /dev/osprda /dev/osprdb & ' .
+      './osprdaccess -r -l /dev/osprdb /dev/osprda)' ,
+      "ioctl OSPRDIOCACQUIRE: Resource deadlock avoided"
+    ],
     );
 
 my($ntest) = 0;
