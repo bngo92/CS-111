@@ -20,9 +20,8 @@ Email: bngo92@gmail.com
 
 
 # Add any other information you'd like us to have below this line.
-Our code deadlocks when referring to itself and we can detect this:
-`echo foo | ./osprdaccess -w -l /dev/osprda /dev/osprda`
-
-However, we can't make our code deadlock in other situations so we are assuming it works.
-We try to make dependent processes but each process is always assi
-`
+<<<<<<< HEAD
+It detects self and circular deadlocks but may also call deadlock when there isn't one.
+=======
+Our code properly implements self deadlocking detection but not the other kinds of deadlocking.
+>>>>>>> 901237e... somewhat working

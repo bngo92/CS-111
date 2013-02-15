@@ -166,8 +166,12 @@ close FOO;
       ') 2>/dev/null',
       "aX"
     ],
-    [ '(./osprdaccess -r -l /dev/osprda /dev/osprda)' ,
-      ""
+    [ '(echo foo | ./osprdaccess -w -l); ' .
+      '(./osprdaccess -r -l /dev/osprda -r -l 1 /dev/osprda)' ,
+      "foo "
+    ],
+    [ '(echo foo | ./osprdaccess -r -l /dev/osprda -w -l 1 /dev/osprda)' ,
+      "ioctl OSPRDIOCACQUIRE: Resource deadlock avoided"
     ],
     [ '(echo foo | ./osprdaccess -r -l /dev/osprda -w -l 1 /dev/osprda)' ,
       "ioctl OSPRDIOCACQUIRE: Resource deadlock avoided"
@@ -178,9 +182,22 @@ close FOO;
     [ '(echo foo | ./osprdaccess -w -l /dev/osprda -r -l 1 /dev/osprda)' ,
       "ioctl OSPRDIOCACQUIRE: Resource deadlock avoided"
     ],
-    [ '(echo foo | ./osprdaccess -w -l /dev/osprda /dev/osprdb & ' .
-      './osprdaccess -r -l /dev/osprdb /dev/osprda)' ,
-      "ioctl OSPRDIOCACQUIRE: Resource deadlock avoided"
+    [ '(echo foo | ./osprdaccess -w -l /dev/osprda -w -l 1 /dev/osprdb & ' .
+      './osprdaccess -r -l /dev/osprdb -r -l 1 /dev/osprda)' ,
+      "ioctl OSPRDIOCACQUIRE: Resource deadlock avoided "
+    ],
+    [ '(echo foo | ./osprdaccess -w -l /dev/osprda -r -l 1 /dev/osprdb & ' .
+      './osprdaccess -w -l /dev/osprdb -r -l 1 /dev/osprda)' ,
+      "ioctl OSPRDIOCACQUIRE: Resource deadlock avoided ioctl OSPRDIOCACQUIRE: Resource deadlock avoided"
+    ],
+    [ '(echo foo | ./osprdaccess -w -l /dev/osprda -r -l 1 /dev/osprdb & ' .
+      './osprdaccess -w -l /dev/osprdb -r -l 1 /dev/osprdc & ' .
+      './osprdaccess -w -l /dev/osprdc -r -l 1 /dev/osprda)' ,
+      "ioctl OSPRDIOCACQUIRE: Resource deadlock avoided ioctl OSPRDIOCACQUIRE: Resource deadlock avoided ioctl OSPRDIOCACQUIRE: Resource deadlock avoided"
+    ],
+    [ '(echo foo | ./osprdaccess -w -l 1 /dev/osprda & ' .
+      './osprdaccess -w -l 2 /dev/osprdb -r -l /dev/osprda)' ,
+      "foo"
     ],
     );
 
