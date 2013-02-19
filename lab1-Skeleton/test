@@ -1,17 +1,8 @@
 traceroute google.com
-sleep 30
-echo hello world; echo goodbye; echo poop; ls; cat test; ls | grep test
-head /dev/urandom > a.tmp
-head /dev/urandom > b.tmp
-cat a.tmp
-grep c < b.tmp
-echo a.tmp;
-echo a.tmp;
-echo a.tmp;
-echo a.tmp;
-echo a.tmp;
-echo a.tmp;
-echo a.tmp;
-echo a.tmp;
-echo a.tmp;
+sleep 20
+find lib /
+locate a
+cat /usr/share/dict/words
+cat /usr/share/dict/words
+cat /usr/share/dict/words
 cat /usr/share/dict/words
