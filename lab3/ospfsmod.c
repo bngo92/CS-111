@@ -472,6 +472,7 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		 * an inode number of 0.)
 		 *
 		 * If the current entry is successfully read (the call to
+		 * filldir returns >= 0), or the current entry is skipped,
 		 * your function should advance f_pos by the proper amount to
 		 * advance to the next directory entry.
 		 */
@@ -479,6 +480,13 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		/* EXERCISE: Your code here */
 		od = ospfs_inode_data(dir_oi, f_pos * OSPFS_DIRENTRY_SIZE);
 		if (od->od_ino != 0) {
+			int type;
+			switch (entry_oi->oi_ftype) {
+			case OSPFS_FTYPE_REG: type = DT_REG;
+			case OSPFS_FTYPE_DIR: type = DT_DIR;
+			case OSPFS_FTYPE_SYMLINK: type = DT_LNK;
+			default: return -EIO;
+			}
 			entry_oi = ospfs_inode(od->od_ino);
 			ok_so_far = filldir(dirent, od->od_name, strlen(od->od_name), f_pos, od->od_ino, entry_oi->oi_ftype);
 			if (ok_so_far >= 0)
@@ -1018,7 +1026,8 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 		// Figure out how much data is left in this block to write.
 		// Copy data from user space. Return -EFAULT if unable to read
 		// read user space.
-		// Keep track of the number of bytes moved in 'n'.  /* EXERCISE: Your code here */
+		// Keep track of the number of bytes moved in 'n'.  
+		/* EXERCISE: Your code here */
 		n = count - amount;
 		if (n > OSPFS_BLKSIZE)
 			n = OSPFS_BLKSIZE;
@@ -1201,6 +1210,8 @@ ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidat
 		return -EIO;
 	od->od_ino = entry_ino;
 	strcpy(od->od_name, dentry->d_name.name);
+	oi->oi_size = 0;
+	oi->oi_ftype = OSPFS_FTYPE_REG;
 	oi->oi_nlink = 1;
 	oi->oi_mode = mode;
 
