@@ -20,8 +20,4 @@ Email: bngo92@gmail.com
 
 
 # Add any other information you'd like us to have below this line.
-<<<<<<< HEAD
 It detects self and circular deadlocks but may also call deadlock when there isn't one.
-=======
-Our code properly implements self deadlocking detection but not the other kinds of deadlocking.
->>>>>>> 901237e... somewhat working

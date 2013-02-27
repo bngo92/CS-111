@@ -714,14 +714,12 @@ add_block(ospfs_inode_t *oi)
 	uint32_t allocated[2] = { 0, 0 };
 	
 	/* EXERCISE: Your code here */
-	int retval = 0;
 	if (n == OSPFS_MAXFILEBLKS)
 		return -ENOSPC;
 	allocated[0] = allocate_block();
 	if (allocated[0] == 0)
 		return -ENOSPC;
 	memset(ospfs_block(allocated[0]), 0, OSPFS_BLKSIZE);
-	oi->oi_size += OSPFS_BLKSIZE;
 
 	if (n < OSPFS_NDIRECT) {
 		oi->oi_direct[n] = allocated[0];
@@ -767,6 +765,7 @@ add_block(ospfs_inode_t *oi)
 			indirect[indirect_off] = allocated[0];
 		}
 	}
+	oi->oi_size += OSPFS_BLKSIZE;
 	return 0; 
 }
 
@@ -798,19 +797,9 @@ remove_block(ospfs_inode_t *oi)
 {
 	// current number of blocks in file
 	uint32_t n = ospfs_size2nblocks(oi->oi_size);		
-	n--;
+
 	/* EXERCISE: Your code here */
-	if(n<0)
-		return -EIO; //??!?!?!
-	//no i
-	if(n<OSPFS_NDIRECT)
-		free_block(oi_direct[n]);
-	else if (n>OSFPS_NDIRECT && n<=OSPFS_NINDIRECT+NDIRECT) {
-		free_block(
-	}
-	else {
-		if(
-	
+	return -EIO;
 }
 
 
@@ -1003,11 +992,17 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 	// Support files opened with the O_APPEND flag.  To detect O_APPEND,
 	// use struct file's f_flags field and the O_APPEND bit.
 	/* EXERCISE: Your code here */
-	//int append = filp->f_flags & O_APPEND;
+	int append = filp->f_flags & O_APPEND;
+	if (append)
+		*f_pos = oi->oi_size;
+	eprintk("%d %u\n", count, *f_pos);
 	
 	// If the user is writing past the end of the file, change the file's
 	// size to accomodate the request.  (Use change_size().)
 	/* EXERCISE: Your code here */
+	if (count > oi->oi_size - *f_pos) {
+		change_size(oi, count + oi->oi_size);
+	}
 
 	// Copy data block by block
 	while (amount < count && retval >= 0) {
@@ -1017,6 +1012,7 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 
 		if (blockno == 0) {
 			retval = -EIO;
+			eprintk("error\n");
 			goto done;
 		}
 
@@ -1025,14 +1021,17 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 		// Figure out how much data is left in this block to write.
 		// Copy data from user space. Return -EFAULT if unable to read
 		// read user space.
-		// Keep track of the number of bytes moved in 'n'.
-		/* EXERCISE: Your code here */
-		retval = -EIO; // Replace these lines
-		goto done;
+		// Keep track of the number of bytes moved in 'n'.  /* EXERCISE: Your code here */
+		n = count - amount;
+		if (n > OSPFS_BLKSIZE)
+			n = OSPFS_BLKSIZE;
+		if (copy_from_user(data + *f_pos, buffer, n) != 0)
+			return -EFAULT;
 
 		buffer += n;
 		amount += n;
 		*f_pos += n;
+		eprintk("%s\n", data + *f_pos);	
 	}
 
     done:
