@@ -452,7 +452,7 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		 * the loop.  For now we do this all the time.
 		 *
 		 * EXERCISE: Your code here */
-		if (f_pos * OSPFS_DIRENTRY_SIZE >= dir_oi->oi_size) {
+		if ((f_pos - 2) * OSPFS_DIRENTRY_SIZE >= dir_oi->oi_size) {
 			r = 1;		/* Fix me! */
 			break;		/* Fix me! */
 		}
@@ -478,13 +478,13 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		 */
 
 		/* EXERCISE: Your code here */
-		od = ospfs_inode_data(dir_oi, f_pos * OSPFS_DIRENTRY_SIZE);
+		od = ospfs_inode_data(dir_oi, (f_pos - 2) * OSPFS_DIRENTRY_SIZE);
 		if (od->od_ino != 0) {
 			int type;
 			switch (entry_oi->oi_ftype) {
-			case OSPFS_FTYPE_REG: type = DT_REG;
-			case OSPFS_FTYPE_DIR: type = DT_DIR;
-			case OSPFS_FTYPE_SYMLINK: type = DT_LNK;
+			case OSPFS_FTYPE_REG: type = DT_REG; break;
+			case OSPFS_FTYPE_DIR: type = DT_DIR; break;
+			case OSPFS_FTYPE_SYMLINK: type = DT_LNK; break;
 			default: return -EIO;
 			}
 			entry_oi = ospfs_inode(od->od_ino);
@@ -641,7 +641,9 @@ static int32_t
 indir2_index(uint32_t b)
 {
 	// Your code here.
-	return -1;
+	if (b < OSPFS_NDIRECT + OSPFS_NINDIRECT)
+		return -1;
+	return 0;
 }
 
 
@@ -660,7 +662,11 @@ static int32_t
 indir_index(uint32_t b)
 {
 	// Your code here.
-	return -1;
+	if (b < OSPFS_NDIRECT)
+		return -1;
+	if (b < OSPFS_NDIRECT + OSPFS_NINDIRECT)
+		return 0;
+	return (b - (OSPFS_NDIRECT + OSPFS_NINDIRECT)) / OSPFS_NINDIRECT;
 }
 
 
@@ -677,7 +683,9 @@ static int32_t
 direct_index(uint32_t b)
 {
 	// Your code here.
-	return -1;
+	if (b < OSPFS_NDIRECT)
+		return b;
+	return (b - (OSPFS_NDIRECT + OSPFS_NINDIRECT)) / OSPFS_NINDIRECT;
 }
 
 
@@ -807,7 +815,43 @@ remove_block(ospfs_inode_t *oi)
 	uint32_t n = ospfs_size2nblocks(oi->oi_size);		
 
 	/* EXERCISE: Your code here */
-	return -EIO;
+	uint32_t indirect2_off = (n - OSPFS_NDIRECT) / OSPFS_NINDIRECT - 1;
+	uint32_t indirect_off = (n - OSPFS_NDIRECT) % OSPFS_NINDIRECT - 1;
+	if (n < OSPFS_NDIRECT) {
+		free_block(n - 1);
+		oi->oi_direct[n - 1] = 0;
+	} else if (n < OSPFS_NDIRECT + OSPFS_NINDIRECT) {
+		uint32_t *indirect;
+		if (oi->oi_indirect == 0)
+			return -EIO;
+		indirect = ospfs_block(oi->oi_indirect);
+
+		free_block(indirect[indirect_off]);
+		if (indirect_off == 0)
+			free_block(oi->oi_indirect);
+	} else {
+		uint32_t *indirect2;
+		uint32_t *indirect;
+		if (oi->oi_indirect2 == 0)
+			return -EIO;
+ 		indirect2 = ospfs_block(oi->oi_indirect2);
+		if (indirect2[indirect2_off] == 0)
+			return -EIO;
+		indirect = ospfs_block(indirect2[indirect2_off]);
+		free_block(indirect[indirect_off]);
+		indirect[indirect_off] = 0;
+		if (indirect_off == 0) {
+			free_block(indirect2[indirect2_off]);
+			indirect2[indirect2_off] = 0;
+			if (indirect2_off == 0) {
+				free_block(oi->oi_indirect2);
+				oi->oi_indirect2 = 0;
+			}
+		}
+	}
+
+	oi->oi_size -= OSPFS_BLKSIZE;
+	return 0; 
 }
 
 
@@ -1000,6 +1044,7 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 	// use struct file's f_flags field and the O_APPEND bit.
 	/* EXERCISE: Your code here */
 	int append = filp->f_flags & O_APPEND;
+	eprintk("%d %d %d %d\n", count, *f_pos, oi->oi_size, append);
 	if (append)
 		*f_pos = oi->oi_size;
 	
