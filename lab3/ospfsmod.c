@@ -1380,25 +1380,29 @@ ospfs_follow_link(struct dentry *dentry, struct nameidata *nd)
 	ospfs_symlink_inode_t *oi =
 		(ospfs_symlink_inode_t *) ospfs_inode(dentry->d_inode->i_ino);
 	// Exercise: Your code here.
-	char *buffer1 = oi->oi_symlink;
-	char *buffer2;
-	while (*buffer1 != '?') {
-		if (*buffer1 == '\0')
+	char buffer[OSPFS_MAXSYMLINKLEN];
+	char *p = oi->oi_symlink;
+
+	// check for question mark
+	while (*p != '?') {
+		if (*p == '\0')
 			goto skip;
-		buffer1++;
+		p++;
 	}
-	buffer1++;
-	buffer2 = buffer1;
-	while (*buffer2 != ':') {
-		buffer2++;
+	p++;
+	strcpy(buffer, p);
+	p = buffer;
+	while (*p != ':')
+		p++;
+	*p = '\0';
+	if (current->uid == 0) {
+		p = buffer;
+	} else {
+		p++;
 	}
-	*buffer2 = '\0';
-	buffer2++;
-	eprintk("%s %s\n", buffer1, buffer2);
-	if (current->euid == 0)
-		memcpy(nd, buffer1, strlen(buffer1));
-	else
-		memcpy(nd, buffer2, strlen(buffer2));
+	nd_set_link(nd, p);
+	eprintk("%s\n", p);
+	return (void *) 0;
 skip:
 
 	nd_set_link(nd, oi->oi_symlink);
