@@ -1208,7 +1208,7 @@ ospfs_link(struct dentry *src_dentry, struct inode *dir, struct dentry *dst_dent
 	if (find_direntry(dir_oi, dst_dentry->d_name.name, dst_dentry->d_name.len))
 		return -EEXIST;
 
-	/*od = create_blank_direntry(dir_oi);
+	od = create_blank_direntry(dir_oi);
 	if (IS_ERR(od))
 		return -ENOSPC;
 	for (entry_ino = 2; entry_ino < ospfs_super->os_ninodes; entry_ino++) {
@@ -1219,16 +1219,8 @@ ospfs_link(struct dentry *src_dentry, struct inode *dir, struct dentry *dst_dent
 	if (entry_ino == ospfs_super->os_ninodes)
 		return -EIO;
 	od->od_ino = src_dentry->d_inode->i_ino;
-	strcpy(od->od_name, dst_dentry->d_name.name);*/
-
-	dst_dentry->d_inode = src_dentry->d_inode;
-	//dst_dentry->d_inode = kmalloc(sizeof(dst_dentry->d_inode), GFP_ATOMIC);
-	//dst_dentry->d_inode->i_ino = kmalloc(sizeof(dst_dentry->d_inode->i_ino), GFP_ATOMIC);
-	//dst_dentry->d_inode->i_ino = src_dentry->d_inode->i_ino;
-	oi = ospfs_inode(dst_dentry->d_inode->i_ino);
-	eprintk("%d\n", oi->oi_nlink);
-	oi->oi_nlink++;
-	eprintk("%d\n", oi->oi_nlink);
+	strcpy(od->od_name, dst_dentry->d_name.name);
+	oi = ospfs_inode(od->od_ino);
 	oi->oi_nlink++;
 	return 0;
 }
@@ -1403,7 +1395,7 @@ ospfs_follow_link(struct dentry *dentry, struct nameidata *nd)
 	*buffer2 = '\0';
 	buffer2++;
 	eprintk("%s %s\n", buffer1, buffer2);
-	if (current->id == 0)
+	if (current->euid == 0)
 		memcpy(nd, buffer1, strlen(buffer1));
 	else
 		memcpy(nd, buffer2, strlen(buffer2));
