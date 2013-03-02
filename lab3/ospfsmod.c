@@ -685,7 +685,7 @@ direct_index(uint32_t b)
 	// Your code here.
 	if (b < OSPFS_NDIRECT)
 		return b;
-	return (b - (OSPFS_NDIRECT + OSPFS_NINDIRECT)) / OSPFS_NINDIRECT;
+	return (b - (OSPFS_NDIRECT + OSPFS_NINDIRECT)) % OSPFS_NINDIRECT;
 }
 
 
@@ -733,6 +733,7 @@ add_block(ospfs_inode_t *oi)
 	if (n == OSPFS_MAXFILEBLKS)
 		return -ENOSPC;
 	allocated[0] = allocate_block();
+	eprintk("%d\n", allocated[0]);
 	if (allocated[0] == 0)
 		return -ENOSPC;
 	memset(ospfs_block(allocated[0]), 0, OSPFS_BLKSIZE);
@@ -743,7 +744,8 @@ add_block(ospfs_inode_t *oi)
 		uint32_t *indirect;
 
 		// allocate indirect block if necessary
-		if ((n - OSPFS_NDIRECT) % OSPFS_NINDIRECT == 0) {
+		if (direct_index(n) == 0) {
+			//eprintk("allocate indirect\n");
 			allocated[1] = allocate_block();
 			if (allocated[1] == 0) {
 				free_block(allocated[0]);
@@ -766,6 +768,7 @@ add_block(ospfs_inode_t *oi)
 			uint32_t indirect_off = (n - OSPFS_NDIRECT) % OSPFS_NINDIRECT;
 			
 			if (n == OSPFS_NDIRECT + OSPFS_NINDIRECT) {
+				//eprintk("allocate doubly\n");
 				oi->oi_indirect2 = allocate_block();
 				if (oi->oi_indirect2 == 0) {
 					free_block(allocated[0]);
@@ -902,6 +905,7 @@ change_size(ospfs_inode_t *oi, uint32_t new_size)
 			new_size = old_size;
 			r = -ENOSPC;
 		}
+		//eprintk("%d\n", ospfs_size2nblocks(oi->oi_size));
 	}
 	while (ospfs_size2nblocks(oi->oi_size) > ospfs_size2nblocks(new_size)) {
 	        /* EXERCISE: Your code here */
@@ -1059,7 +1063,9 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 		uint32_t n;
 		char *data;
 
+		eprintk("%d\n", blockno);
 		if (blockno == 0) {
+			eprintk("error\n");
 			retval = -EIO;
 			goto done;
 		}
@@ -1394,8 +1400,9 @@ ospfs_follow_link(struct dentry *dentry, struct nameidata *nd)
     ospfs_symlink_inode_t *oi =
 		(ospfs_symlink_inode_t *) ospfs_inode(dentry->d_inode->i_ino);
 	// Exercise: Your code here.
-	char buffer[OSPFS_MAXSYMLINKLEN];
+	char *buffer;
 	char *p = oi->oi_symlink;
+	char *start;
 
 	// check for question mark
 	while (*p != '?') {
@@ -1404,18 +1411,21 @@ ospfs_follow_link(struct dentry *dentry, struct nameidata *nd)
 		p++;
 	}
 	p++;
-	strcpy(buffer, p);
-	p = buffer;
+	start = p;
 	while (*p != ':')
 		p++;
-	*p = '\0';
 	if (current->uid == 0) {
-		p = buffer;
+		buffer = kmalloc(strlen(p) + 1, GFP_ATOMIC);
+		strncpy(buffer, start, p - start);
 	} else {
 		p++;
+		buffer = kmalloc(strlen(p) + 1, GFP_ATOMIC);
+		strcpy(buffer, p);
 	}
+	buffer[strlen(buffer)] = '\0';
 
-	nd_set_link(nd, p);
+	nd_set_link(nd, buffer);
+	kfree(buffer);
 	return (void *) 0;
 skip:
 
