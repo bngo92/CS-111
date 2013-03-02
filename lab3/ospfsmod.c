@@ -819,7 +819,6 @@ remove_block(ospfs_inode_t *oi)
 		uint32_t blockoff = blockno - (OSPFS_NDIRECT + OSPFS_NINDIRECT);
 		uint32_t *indirect2_block;
 		uint32_t *indirect_block;
-		eprintk("doubly %d\n", blockno);
 		if (oi->oi_indirect2 == 0)
 			return -EIO;
 		indirect2_block = ospfs_block(oi->oi_indirect2);
@@ -829,19 +828,16 @@ remove_block(ospfs_inode_t *oi)
 
 		free_block(indirect_block[blockoff % OSPFS_NINDIRECT]);
 		indirect_block[blockoff % OSPFS_NINDIRECT] = 0;
-		if (blockno % OSPFS_NINDIRECT == 0) {
-			eprintk("free indirect\n");
+		if (blockoff % OSPFS_NINDIRECT == 0) {
 			free_block(indirect2_block[blockoff / OSPFS_NINDIRECT]);
 			indirect2_block[blockoff / OSPFS_NINDIRECT] = 0;
 			if (blockno == OSPFS_NDIRECT + OSPFS_NINDIRECT) {
-				eprintk("free doubly\n");
 				free_block(oi->oi_indirect2);
 				oi->oi_indirect2 = 0;
 			}
 		}
 	} else if (blockno >= OSPFS_NDIRECT) {
 		uint32_t *indirect_block = ospfs_block(oi->oi_indirect);
-		eprintk("indirect %d\n", blockno);
 		if (oi->oi_indirect == 0)
 			return -EIO;
 
@@ -905,11 +901,9 @@ change_size(ospfs_inode_t *oi, uint32_t new_size)
 			new_size = old_size;
 			r = -ENOSPC;
 		}
-		//eprintk("%d\n", ospfs_size2nblocks(oi->oi_size));
 	}
 	while (ospfs_size2nblocks(oi->oi_size) > ospfs_size2nblocks(new_size)) {
 	        /* EXERCISE: Your code here */
-		//eprintk("%d\n", ospfs_size2nblocks(oi->oi_size));
 		remove_block(oi);
 	}
 
