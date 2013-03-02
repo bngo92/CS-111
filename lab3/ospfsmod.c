@@ -744,7 +744,6 @@ add_block(ospfs_inode_t *oi)
 
 		// allocate indirect block if necessary
 		if (direct_index(n) == 0) {
-			eprintk("allocate indirect\n");
 			allocated[1] = allocate_block();
 			if (allocated[1] == 0) {
 				free_block(allocated[0]);
@@ -767,7 +766,6 @@ add_block(ospfs_inode_t *oi)
 			uint32_t *indirect_block;
 			
 			if (n == OSPFS_NDIRECT + OSPFS_NINDIRECT) {
-				eprintk("allocate doubly\n");
 				oi->oi_indirect2 = allocate_block();
 				if (oi->oi_indirect2 == 0) {
 					free_block(allocated[0]);
@@ -816,41 +814,44 @@ remove_block(ospfs_inode_t *oi)
 	// current number of blocks in file
 	uint32_t n = ospfs_size2nblocks(oi->oi_size);		
 	/* EXERCISE: Your code here */
-	uint32_t indirect2_off = (n - OSPFS_NDIRECT) / OSPFS_NINDIRECT - 1;
-	uint32_t indirect_off = (n - OSPFS_NDIRECT) % OSPFS_NINDIRECT - 1;
-	if (n <= OSPFS_NDIRECT) {
-		free_block(oi->oi_direct[n - 1]);
-		oi->oi_direct[n - 1] = 0;
-	} else if (n <= OSPFS_NDIRECT + OSPFS_NINDIRECT) {
-		uint32_t *indirect;
-		if (oi->oi_indirect == 0)
-			return -EIO;
-		indirect = ospfs_block(oi->oi_indirect);
-
-		free_block(indirect[indirect_off]);
-		if (indirect_off == 0)
-			free_block(oi->oi_indirect);
-	} else {
-		uint32_t *indirect2;
-		uint32_t *indirect;
+	uint32_t blockno = n - 1;
+	if (blockno >= OSPFS_NDIRECT + OSPFS_NINDIRECT) {
+		uint32_t blockoff = blockno - (OSPFS_NDIRECT + OSPFS_NINDIRECT);
+		uint32_t *indirect2_block;
+		uint32_t *indirect_block;
+		eprintk("doubly %d\n", blockno);
 		if (oi->oi_indirect2 == 0)
 			return -EIO;
- 		indirect2 = ospfs_block(oi->oi_indirect2);
-		if (indirect2[indirect2_off] == 0)
+		indirect2_block = ospfs_block(oi->oi_indirect2);
+		if (indirect2_block[blockoff / OSPFS_NINDIRECT] == 0)
 			return -EIO;
-		indirect = ospfs_block(indirect2[indirect2_off]);
-		free_block(indirect[indirect_off]);
-		indirect[indirect_off] = 0;
-		if (indirect_off == 0) {
-			free_block(indirect2[indirect2_off]);
-			indirect2[indirect2_off] = 0;
-			if (indirect2_off == 0) {
+		indirect_block = ospfs_block(indirect2_block[blockoff / OSPFS_NINDIRECT]);
+
+		free_block(indirect_block[blockoff % OSPFS_NINDIRECT]);
+		indirect_block[blockoff % OSPFS_NINDIRECT] = 0;
+		if (blockno % OSPFS_NINDIRECT == 0) {
+			eprintk("free indirect\n");
+			free_block(indirect2_block[blockoff / OSPFS_NINDIRECT]);
+			indirect2_block[blockoff / OSPFS_NINDIRECT] = 0;
+			if (blockno == OSPFS_NDIRECT + OSPFS_NINDIRECT) {
+				eprintk("free doubly\n");
 				free_block(oi->oi_indirect2);
 				oi->oi_indirect2 = 0;
 			}
 		}
-	}
+	} else if (blockno >= OSPFS_NDIRECT) {
+		uint32_t *indirect_block = ospfs_block(oi->oi_indirect);
+		eprintk("indirect %d\n", blockno);
+		if (oi->oi_indirect == 0)
+			return -EIO;
 
+		free_block(indirect_block[blockno - OSPFS_NINDIRECT]);
+		if (blockno - OSPFS_NDIRECT == 0)
+			free_block(oi->oi_indirect);
+	} else {
+		free_block(oi->oi_direct[blockno]);
+		oi->oi_direct[blockno] = 0;
+	}
 	oi->oi_size -= OSPFS_BLKSIZE;
 	return 0; 
 }
@@ -904,10 +905,11 @@ change_size(ospfs_inode_t *oi, uint32_t new_size)
 			new_size = old_size;
 			r = -ENOSPC;
 		}
+		//eprintk("%d\n", ospfs_size2nblocks(oi->oi_size));
 	}
 	while (ospfs_size2nblocks(oi->oi_size) > ospfs_size2nblocks(new_size)) {
 	        /* EXERCISE: Your code here */
-		eprintk("infinite loop\n");
+		//eprintk("%d\n", ospfs_size2nblocks(oi->oi_size));
 		remove_block(oi);
 	}
 
@@ -1052,7 +1054,6 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 	// size to accomodate the request.  (Use change_size().)
 	/* EXERCISE: Your code here */
 	if (count > oi->oi_size - *f_pos) {
-		eprintk("change size: %d\n", (count + oi->oi_size) / OSPFS_BLKSIZE);
 		change_size(oi, count + oi->oi_size);
 	}
 
@@ -1063,12 +1064,10 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 		char *data;
 
 		if (blockno == 0) {
-			eprintk("error\n");
 			retval = -EIO;
 			goto done;
 		}
 		data = ospfs_block(blockno);
-		eprintk("write: %d\n", blockno);
 		// Figure out how much data is left in this block to write.
 		// Copy data from user space. Return -EFAULT if unable to read
 		// read user space.
