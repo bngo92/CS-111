@@ -733,7 +733,6 @@ add_block(ospfs_inode_t *oi)
 	if (n == OSPFS_MAXFILEBLKS)
 		return -ENOSPC;
 	allocated[0] = allocate_block();
-	eprintk("%d\n", allocated[0]);
 	if (allocated[0] == 0)
 		return -ENOSPC;
 	memset(ospfs_block(allocated[0]), 0, OSPFS_BLKSIZE);
@@ -741,11 +740,11 @@ add_block(ospfs_inode_t *oi)
 	if (n < OSPFS_NDIRECT) {
 		oi->oi_direct[n] = allocated[0];
 	} else {
-		uint32_t *indirect;
+		uint32_t *indirect_block;
 
 		// allocate indirect block if necessary
 		if (direct_index(n) == 0) {
-			//eprintk("allocate indirect\n");
+			eprintk("allocate indirect\n");
 			allocated[1] = allocate_block();
 			if (allocated[1] == 0) {
 				free_block(allocated[0]);
@@ -760,15 +759,15 @@ add_block(ospfs_inode_t *oi)
 
 		// link to direct block
 		if (n < OSPFS_NDIRECT + OSPFS_NINDIRECT) {
-			indirect = ospfs_block(oi->oi_indirect);
-			indirect[n - OSPFS_NDIRECT] = allocated[0]; 
+			indirect_block = ospfs_block(oi->oi_indirect);
+			indirect_block[n - OSPFS_NDIRECT] = allocated[0]; 
 		} else {
-			uint32_t *indirect2;
-			uint32_t indirect2_off = (n - OSPFS_NDIRECT) / OSPFS_NINDIRECT;
-			uint32_t indirect_off = (n - OSPFS_NDIRECT) % OSPFS_NINDIRECT;
+			uint32_t blockoff = n - (OSPFS_NDIRECT + OSPFS_NINDIRECT);
+			uint32_t *indirect2_block;
+			uint32_t *indirect_block;
 			
 			if (n == OSPFS_NDIRECT + OSPFS_NINDIRECT) {
-				//eprintk("allocate doubly\n");
+				eprintk("allocate doubly\n");
 				oi->oi_indirect2 = allocate_block();
 				if (oi->oi_indirect2 == 0) {
 					free_block(allocated[0]);
@@ -777,11 +776,11 @@ add_block(ospfs_inode_t *oi)
 				}
 				memset(ospfs_block(oi->oi_indirect2), 0, OSPFS_BLKSIZE);
 			}
-			indirect2 = ospfs_block(oi->oi_indirect2);
+			indirect2_block = ospfs_block(oi->oi_indirect2);
 			if (allocated[1] != 0)
-				indirect2[indirect2_off] = allocated[1];
-			indirect = ospfs_block(indirect2[indirect2_off]);
-			indirect[indirect_off] = allocated[0];
+				indirect2_block[blockoff / OSPFS_NINDIRECT] = allocated[1];
+			indirect_block = ospfs_block(indirect2_block[blockoff / OSPFS_NINDIRECT]);
+			indirect_block[blockoff % OSPFS_NINDIRECT] = allocated[0];
 		}
 	}
 	oi->oi_size += OSPFS_BLKSIZE;
@@ -905,10 +904,10 @@ change_size(ospfs_inode_t *oi, uint32_t new_size)
 			new_size = old_size;
 			r = -ENOSPC;
 		}
-		//eprintk("%d\n", ospfs_size2nblocks(oi->oi_size));
 	}
 	while (ospfs_size2nblocks(oi->oi_size) > ospfs_size2nblocks(new_size)) {
 	        /* EXERCISE: Your code here */
+		eprintk("infinite loop\n");
 		remove_block(oi);
 	}
 
@@ -997,7 +996,6 @@ ospfs_read(struct file *filp, char __user *buffer, size_t count, loff_t *f_pos)
 		}
 
 		data = ospfs_block(blockno);
-
 		// Figure out how much data is left in this block to read.
 		// Copy data into user space. Return -EFAULT if unable to write
 		// into user space.
@@ -1054,6 +1052,7 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 	// size to accomodate the request.  (Use change_size().)
 	/* EXERCISE: Your code here */
 	if (count > oi->oi_size - *f_pos) {
+		eprintk("change size: %d\n", (count + oi->oi_size) / OSPFS_BLKSIZE);
 		change_size(oi, count + oi->oi_size);
 	}
 
@@ -1063,26 +1062,26 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 		uint32_t n;
 		char *data;
 
-		eprintk("%d\n", blockno);
 		if (blockno == 0) {
 			eprintk("error\n");
 			retval = -EIO;
 			goto done;
 		}
 		data = ospfs_block(blockno);
+		eprintk("write: %d\n", blockno);
 		// Figure out how much data is left in this block to write.
 		// Copy data from user space. Return -EFAULT if unable to read
 		// read user space.
 		// Keep track of the number of bytes moved in 'n'.  
 		
-        /* EXERCISE: Your code here */
+		/* EXERCISE: Your code here */
 		n = count - amount; //left to write!
 		if (n > OSPFS_BLKSIZE)
-			n = OSPFS_BLKSIZE;
+		    n = OSPFS_BLKSIZE;
 		if (copy_from_user(data + *f_pos, buffer, n) != 0)
-        {   
-			return -EFAULT;
-        }
+		{   
+		    return -EFAULT;
+		}
         
 		buffer += n;
 		amount += n;
@@ -1205,6 +1204,7 @@ static int
 ospfs_link(struct dentry *src_dentry, struct inode *dir, struct dentry *dst_dentry) {
 	/* EXERCISE: Your code here. */
 	ospfs_inode_t *dir_oi = ospfs_inode(dir->i_ino);
+	ospfs_direntry_t *od;
 	ospfs_inode_t *oi;
 	uint32_t entry_ino = 0;
 	if (dst_dentry->d_name.len > OSPFS_MAXNAMELEN)
@@ -1212,7 +1212,7 @@ ospfs_link(struct dentry *src_dentry, struct inode *dir, struct dentry *dst_dent
 	if (find_direntry(dir_oi, dst_dentry->d_name.name, dst_dentry->d_name.len))
 		return -EEXIST;
 
-	ospfs_direntry_t *od = create_blank_direntry(dir_oi);
+	od = create_blank_direntry(dir_oi);
 
 	if (IS_ERR(od))
 		return -ENOSPC;
@@ -1227,20 +1227,6 @@ ospfs_link(struct dentry *src_dentry, struct inode *dir, struct dentry *dst_dent
 	strcpy(od->od_name, dst_dentry->d_name.name);
 	oi = ospfs_inode(od->od_ino);
 	oi->oi_nlink++;
-
-    /*int found; 
-	ospfs_direntry_t *odd = NULL;
-    for ( found = 0; found < dir_oi->oi_size; found+=OSPFS_DIRENTRY_SIZE) {
-        odd = ospfs_inode_data(dir_oi, found);
-        if(odd->od_ino == dst_dentry -> d_inode->i_ino) {
-            int i;  
-            for( i = 0; odd->od_name[i]!='\0'; i++)
-            {
-                eprintk("%c",odd->od_name[i]);
-            }
-            eprintk("\n");
-        }
-    }*/
 
 	return 0;
 }
@@ -1281,7 +1267,7 @@ ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidat
 	uint32_t entry_ino = 0;
 	/* EXERCISE: Your code here. */
 	ospfs_direntry_t *od;
-	ospfs_inode_t *oi;
+	ospfs_inode_t *oi = NULL;
 	if (dentry->d_name.len > OSPFS_MAXNAMELEN)
 		return -ENAMETOOLONG;
 	if (find_direntry(dir_oi, dentry->d_name.name, dentry->d_name.len))
