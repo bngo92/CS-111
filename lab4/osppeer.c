@@ -20,6 +20,7 @@
 #include <pwd.h>
 #include <time.h>
 #include <limits.h>
+#include <sys/wait.h>
 #include "md5.h"
 #include "osp2p.h"
 
@@ -690,6 +691,10 @@ int main(int argc, char *argv[])
 	char *s;
 	const char *myalias;
 	struct passwd *pwent;
+	pid_t *n_pid;
+	int size;
+	int max;
+	int i;
 
 	// Default tracker is read.cs.ucla.edu
 	osp2p_sscanf("131.179.80.139:11111", "%I:%d",
@@ -759,13 +764,45 @@ int main(int argc, char *argv[])
 	register_files(tracker_task, myalias);
 
 	// First, download files named on command line.
-	for (; argc > 1; argc--, argv++)
-		if ((t = start_download(tracker_task, argv[1])))
-			task_download(t, tracker_task);
+	max = argc - 2;
+	n_pid = malloc(max * sizeof(pid_t));
+	for (; argc > 1; argc--, argv++) {
+		if ((t = start_download(tracker_task, argv[1]))) {
+			pid_t pid = fork();
+			if (pid == 0) {
+				task_download(t, tracker_task);
+				_exit(0);
+			} else
+				n_pid[argc - 2] = pid;
+			printf("start: %d\n", argc - 2);
+		}
+	}
+
+	for (i = 0; i < max; i++) {
+		waitpid(n_pid[i], NULL, WNOHANG);
+	}
 
 	// Then accept connections from other peers and upload files to them!
-	while ((t = task_listen(listen_task)))
-		task_upload(t);
+	size = 0;
+	while ((t = task_listen(listen_task))) {
+		pid_t pid = fork();
+		if (pid == 0) {
+			task_upload(t);
+			_exit(0);
+		} else {
+			n_pid[size++] = pid;
+			if (size == max) {
+				max *= 2;
+				n_pid = realloc(n_pid, max * sizeof(pid_t));
+			}
+		}
+		for (i = 0; i < size; i++) {
+			if (waitpid(n_pid[i], 0, WNOHANG) > 0) {
+				n_pid[i] = n_pid[size-1];
+				--size;
+			}
+		}
+	}
 
 	return 0;
 }
