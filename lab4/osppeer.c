@@ -764,7 +764,7 @@ int main(int argc, char *argv[])
 	register_files(tracker_task, myalias);
 
 	// First, download files named on command line.
-	max = argc - 2;
+	max = argc - 1;
 	n_pid = malloc(max * sizeof(pid_t));
 	for (; argc > 1; argc--, argv++) {
 		if ((t = start_download(tracker_task, argv[1]))) {
@@ -780,7 +780,6 @@ int main(int argc, char *argv[])
 	for (i = 0; i < max; i++) {
 		waitpid(n_pid[i], NULL, WNOHANG);
 	}
-	printf("done\n");
 
 	// Then accept connections from other peers and upload files to them!
 	size = 0;
