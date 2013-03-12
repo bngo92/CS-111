@@ -774,13 +774,13 @@ int main(int argc, char *argv[])
 				_exit(0);
 			} else
 				n_pid[argc - 2] = pid;
-			printf("start: %d\n", argc - 2);
 		}
 	}
 
 	for (i = 0; i < max; i++) {
 		waitpid(n_pid[i], NULL, WNOHANG);
 	}
+	printf("done\n");
 
 	// Then accept connections from other peers and upload files to them!
 	size = 0;
