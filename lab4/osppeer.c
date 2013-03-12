@@ -650,6 +650,16 @@ static void task_upload(task_t *t)
 	}
 	t->head = t->tail = 0;
 
+	// Check file path
+	char cwd[1024];
+	getcwd(cwd, sizeof(cwd));
+	char path[1024];
+	realpath(t->filename, path);
+	if (strstr(path, cwd) == NULL) {
+		error("* File not found");
+		goto exit;
+	}
+
 	t->disk_fd = open(t->filename, O_RDONLY);
 	if (t->disk_fd == -1) {
 		error("* Cannot open file %s", t->filename);
