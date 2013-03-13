@@ -643,22 +643,27 @@ static void task_upload(task_t *t)
 			break;
 	}
 
+	// Check errors
+	printf("* DEBUG: %s\n", t->filename);
+	if (strlen(t->filename) >= 256) {
+		error("* ERROR: File name too long (%d)\n", strlen(t->filename));
+		goto exit;
+	}
+	char cwd[256];
+	getcwd(cwd, sizeof(cwd));
+	char path[256];
+	realpath(t->filename, path);
+	if (strstr(path, cwd) == NULL) {
+		error("* ERROR: File not found (%s)\n", t->filename);
+		goto exit;
+	}
+
 	assert(t->head == 0);
 	if (osp2p_snscanf(t->buf, t->tail, "GET %s OSP2P\n", t->filename) < 0) {
 		error("* Odd request %.*s\n", t->tail, t->buf);
 		goto exit;
 	}
 	t->head = t->tail = 0;
-
-	// Check file path
-	char cwd[1024];
-	getcwd(cwd, sizeof(cwd));
-	char path[1024];
-	realpath(t->filename, path);
-	if (strstr(path, cwd) == NULL) {
-		error("* File not found");
-		goto exit;
-	}
 
 	t->disk_fd = open(t->filename, O_RDONLY);
 	if (t->disk_fd == -1) {
