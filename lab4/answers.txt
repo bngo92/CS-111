@@ -19,8 +19,8 @@ Email: bngo92@gmail.com
 
 # Partner 2 (if you're working in a team)
 Name: Rachel Fang
-Student ID: 
-Email: 
+Student ID: 104001868
+Email: rfang@ucla.edu
 
 # EXERCISE 1: What method you used to make your peer download and upload
 #    files in parallel?  (~1-3 sentences)
@@ -45,9 +45,22 @@ TASKBUFSIZ and FILENAMESIZ respectively.
 We fixed the issue of uploading files outside of our working directory by
 using getcwd and realpath to make sure that the requested file is inside
 the working directory.
+We checked to limit the size of any downloaded file so that one file
+would not consume all resources and that we would not download a single
+file indefinitely. The size limit, 2^30 bytes, is arbitrary but large 
+enough to accomodate most reasonable files. 
 
 # EXERCISE 3: Describe the attacks you implemented for "evil mode".  Why
 #    are they attacks?  (~3-10 sentences each)
+We implemented an attack involving buffer overflow by replacing the GET request
+with a string of 'A's greater than the size of the buffer. This is an attack 
+because it changes memory inappropriately. Though a string of A's is intended
+to crash the program, theoretically code could be inserted into the buffer overflow. 
+We also implemented an attack where, instead of reading the file requested, we 
+continually feed data from /dev/urandom. Not only is the corrent file data not being passed, 
+/dev/urandom is not a constant file and causes a large amount of garbage data 
+to be passed, overwhelming client resources.
+
 
 # Extra credit problems
 #Extra credit problem: none
