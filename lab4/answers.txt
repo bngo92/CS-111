@@ -40,24 +40,41 @@ The program alread used osp2p_snscanf to parse input so we added the
 additional check of making sure the length of the string is less than
 TASKBUFSIZ and FILENAMESIZ respectively.
 
+if (len < FILENAMESIZ && osp2p_snscanf(s, len, "PEER %s %I:%d",
+			p->alias, &p->addr, &p->port) >= 0
+		&& p->port > 0 && p->port <= 65535)
+if (t->tail < FILENAMESIZ && osp2p_snscanf(t->buf, t->tail, "GET %s OSP2P\n", t->filename) < 0) {
+
 # EXERCISE 2B: What other robustness problems did you fix?  (~1-3 sentences
 #    each)
-We fixed the issue of uploading files outside of our working directory by
-using getcwd and realpath to make sure that the requested file is inside
-the working directory.
-We checked to limit the size of any downloaded file so that one file
-would not consume all resources and that we would not download a single
-file indefinitely. The size limit, 2^30 bytes, is arbitrary but large 
+We fixed the issue of uploading files outside of our working directory.
+We used getcwd and realpath to generate and the absolute paths and
+we checked if the working directory was a substring of the requested file
+to make sure that the requested file is inside or is in a subdirectory of the working directory.
+
+We limited the size of any downloaded file so that one file
+would not consume all of the disk space resources and 
+that we would not download a single file indefinitely. 
+The size limit, 2^30 bytes, is arbitrary but large 
 enough to accomodate most reasonable files. 
+
+We truncated the input of the tracker peer list to prevent fake peers from
+overwhelming our client.
+Whenever the read buffer gets full, we would shift the memory over to make room for
+more input since we depend on the request with the status code that comes at the very end of
+the input.
 
 # EXERCISE 3: Describe the attacks you implemented for "evil mode".  Why
 #    are they attacks?  (~3-10 sentences each)
 We implemented an attack involving buffer overflow by replacing the GET request
-with a string of 'A's greater than the size of the buffer. This is an attack 
-because it changes memory inappropriately. Though a string of A's is intended
-to crash the program, theoretically code could be inserted into the buffer overflow. 
+with a string of 'A's greater than the size of the buffer. 
+This is an attack because it changes memory inappropriately. 
+Though a string of A's is intended to crash the program, 
+theoretically code could be inserted into the buffer overflow. 
+
 We also implemented an attack where, instead of reading the file requested, we 
-continually feed data from /dev/urandom. Not only is the corrent file data not being passed, 
+continually feed data from /dev/urandom. 
+Not only is the corrent file data not being passed, 
 /dev/urandom is not a constant file and causes a large amount of garbage data 
 to be passed, overwhelming client resources.
 
