@@ -291,11 +291,12 @@ static size_t read_tracker_response(task_t *t)
 
 	while (1) {
 		// Check for whether buffer is complete.
-		for (; pos+3 < t->tail; pos++)
+		for (; pos+3 < t->tail; pos++) {
 			if ((pos == 0 || t->buf[pos-1] == '\n')
 			    && isdigit((unsigned char) t->buf[pos])
 			    && isdigit((unsigned char) t->buf[pos+1])
 			    && isdigit((unsigned char) t->buf[pos+2])) {
+				printf("%d ", (int) pos);
 				if (split_pos == (size_t) -1)
 					split_pos = pos;
 				if (pos + 4 >= t->tail)
@@ -306,10 +307,21 @@ static size_t read_tracker_response(task_t *t)
 					return split_pos;
 				}
 			}
+		}
+
+		if (t->tail == TASKBUFSIZ) {
+			while (t->buf[t->tail - 1] != '\n') {
+				t->buf[t->tail - 1] = '\0';
+				--t->tail;
+			}
+			printf("%d\n", (int) split_pos);
+			return split_pos;
+		}
 
 		// If not, read more data.  Note that the read will not block
 		// unless NO data is available.
 		int ret = read_to_taskbuf(t->peer_fd, t);
+		//printf("%d %d %d %d\n", ret, t->head, t->tail, (int) split_pos);
 		if (ret == TBUF_ERROR)
 			die("tracker read error");
 		else if (ret == TBUF_END)
@@ -441,7 +453,7 @@ static peer_t *parse_peer(const char *s, size_t len)
 	peer_t *p = (peer_t *) malloc(sizeof(peer_t));
 	if (p) {
 		p->next = NULL;
-		if (osp2p_snscanf(s, len, "PEER %s %I:%d",
+		if (len < FILENAMESIZ && osp2p_snscanf(s, len, "PEER %s %I:%d",
 				  p->alias, &p->addr, &p->port) >= 0
 		    && p->port > 0 && p->port <= 65535)
 			return p;
@@ -643,27 +655,26 @@ static void task_upload(task_t *t)
 			break;
 	}
 
-	// Check errors
-	printf("* DEBUG: %s\n", t->filename);
-	if (strlen(t->filename) >= 256) {
-		error("* ERROR: File name too long (%d)\n", strlen(t->filename));
-		goto exit;
-	}
-	char cwd[256];
-	getcwd(cwd, sizeof(cwd));
-	char path[256];
-	realpath(t->filename, path);
-	if (strstr(path, cwd) == NULL) {
-		error("* ERROR: File not found (%s)\n", t->filename);
-		goto exit;
-	}
-
 	assert(t->head == 0);
-	if (osp2p_snscanf(t->buf, t->tail, "GET %s OSP2P\n", t->filename) < 0) {
+	if (t->tail < FILENAMESIZ && osp2p_snscanf(t->buf, t->tail, "GET %s OSP2P\n", t->filename) < 0) {
 		error("* Odd request %.*s\n", t->tail, t->buf);
 		goto exit;
 	}
 	t->head = t->tail = 0;
+
+	// Check errors
+	if (strlen(t->filename) >= 256) {
+		error("* ERROR: File name too long (%d)\n", strlen(t->filename));
+		goto exit;
+	}
+	char cwd[FILENAMESIZ];
+	getcwd(cwd, sizeof(cwd));
+	char path[FILENAMESIZ];
+	realpath(t->filename, path);
+	if (strstr(path, cwd) == NULL) {
+		error("* ERROR: File not found in directory (%s)\n", t->filename);
+		goto exit;
+	}
 
 	t->disk_fd = open(t->filename, O_RDONLY);
 	if (t->disk_fd == -1) {
