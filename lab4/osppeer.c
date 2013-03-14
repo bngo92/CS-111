@@ -296,7 +296,6 @@ static size_t read_tracker_response(task_t *t)
 			    && isdigit((unsigned char) t->buf[pos])
 			    && isdigit((unsigned char) t->buf[pos+1])
 			    && isdigit((unsigned char) t->buf[pos+2])) {
-				printf("%d ", (int) pos);
 				if (split_pos == (size_t) -1)
 					split_pos = pos;
 				if (pos + 4 >= t->tail)
@@ -310,12 +309,13 @@ static size_t read_tracker_response(task_t *t)
 		}
 
 		if (t->tail == TASKBUFSIZ) {
-			while (t->buf[t->tail - 1] != '\n') {
-				t->buf[t->tail - 1] = '\0';
-				--t->tail;
-			}
-			printf("%d\n", (int) split_pos);
-			return split_pos;
+			unsigned i = 0;
+			while (t->buf[i] != '\n' && i < t->tail)
+				i++;
+			i++;
+			memmove(t->buf, t->buf + i, TASKBUFSIZ - i);
+			pos -= i;
+			t->tail -= i;
 		}
 
 		// If not, read more data.  Note that the read will not block
